@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# Application Configuration
+app:
+  # Document storage directory
+  documents-path: ${user.dir}/documents
+  
+  # DeepSeek API Configuration
+  deepseek:
+    api-key: REDACTED_DEEPSEEK_API_KEY
+    base-url: https://api.deepseek.com
+    model: deepseek-chat
+    
+  # ChromaDB Configuration
+  chroma:
+    url: http://localhost:8000
+    collection-name: documents
+
+# Logging
+logging:
+  level:
+    com.demo.ragchat: DEBUG
+    dev.langchain4j: DEBUG

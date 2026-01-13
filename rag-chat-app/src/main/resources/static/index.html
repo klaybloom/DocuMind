@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaxPulse AI | 智能税务顾问</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- 侧边栏 -->
+    <aside class="sidebar" id="sidebar">
+        <button class="new-chat-btn" id="new-chat-btn">
+            <i class="fas fa-plus"></i>
+            开启新对话
+        </button>
+
+        <div class="sidebar-section">
+            <div class="section-label">知识库文档</div>
+            <ul class="file-list" id="file-list">
+                <!-- 文件列表将在此处动态加载 -->
+            </ul>
+        </div>
+
+        <div class="upload-section">
+            <input type="file" id="file-input" hidden accept=".pdf,.txt">
+            <button class="btn-upload" id="upload-btn">
+                <i class="fas fa-cloud-upload-alt"></i> 上传税务文档
+            </button>
+        </div>
+    </aside>
+
+    <!-- 主聊天区域 -->
+    <main class="main-chat">
+        <!-- 聊天容器 -->
+        <div class="chat-container" id="chat-messages">
+            <!-- 欢迎页面 -->
+            <div class="welcome-screen" id="welcome-screen">
+                <h1>TaxPulse AI</h1>
+                <p style="color: var(--text-secondary); margin-bottom: 40px; font-size: 1.1rem;">您的专业 RAG 智能税务法律助手</p>
+
+                <div class="features-grid">
+                    <div class="feature-col">
+                        <i class="fas fa-lightbulb"></i>
+                        <h3>智能示例</h3>
+                        <div class="feature-item">"解析上传文件中的个税政策"</div>
+                        <div class="feature-item">"总结当前文档的税务风险"</div>
+                    </div>
+                    <div class="feature-col">
+                        <i class="fas fa-bolt"></i>
+                        <h3>强大能力</h3>
+                        <div class="feature-item">基于本地文档的精准检索</div>
+                        <div class="feature-item">无上下文时切换通用知识模型</div>
+                    </div>
+                    <div class="feature-col">
+                        <i class="fas fa-shield-alt"></i>
+                        <h3>安全保障</h3>
+                        <div class="feature-item">文档仅用于本地索引分析</div>
+                        <div class="feature-item">多模型协同确保回答质量</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="input-area">
+            <div class="input-container-inner">
+                <div class="input-box">
+                    <textarea id="user-input" placeholder="输入您想咨询的税务问题..." rows="1"></textarea>
+                    <button id="send-btn" class="send-btn" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div style="text-align: center; font-size: 0.75rem; color: var(--text-secondary); margin-top: 15px;">
+                    TaxPulse AI 可能会产生错误，请在专业指导下使用。
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js?v=4"></script>
+</body>
+
+</html>
