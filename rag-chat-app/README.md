@@ -1,6 +1,6 @@
-# RAG Chat Application Demo
+# DocuMind - RAG Chat Application
 
-A ChatGPT-like application built with Java, Spring Boot, LangChain4j, ChromaDB, and DeepSeek API.
+A ChatGPT-like document retrieval assistant built with Java, Spring Boot, LangChain4j, ChromaDB, and DeepSeek API.
 
 ## Features
 - **Modern UI**: Clean, responsive ChatGPT-style interface.

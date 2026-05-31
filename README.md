@@ -1,6 +1,6 @@
-# TaxPulse AI - 智能税务 RAG 助手
+# DocuMind - 智能文档 RAG 助手
 
-TaxPulse AI 是一款基于 Java Spring Boot 和 LangChain4j 构建的智能税务法律咨询助手。它利用检索增强生成 (RAG) 技术，能够针对用户上传的税务文档提供精准的解读和问答，并在文档库未命中时自动切换至通用的 AI 知识库。
+DocuMind 是一款基于 Java Spring Boot 和 LangChain4j 构建的智能文档检索助手。它利用检索增强生成 (RAG) 技术，能够针对用户上传的文档提供精准的解读和问答，并在文档库未命中时自动切换至通用的 AI 知识库。
 
 ## ✨ 核心特性
 
@@ -46,7 +46,7 @@ mvn spring-boot:run
 
 ## 📂 项目结构
 ```text
-TaxPulse-AI/
+DocuMind/
 ├── rag-chat-app/             # 后端源码
 │   ├── src/main/java/        # 业务逻辑 (RagService, Controller 等)
 │   ├── src/main/resources/   # 静态资源 (HTML/JS/CSS) 及配置文件

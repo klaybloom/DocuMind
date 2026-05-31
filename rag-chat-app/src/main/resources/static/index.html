@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TaxPulse AI | 智能税务顾问</title>
+    <title>DocuMind | 智能文档助手</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
         rel="stylesheet">
@@ -30,7 +30,7 @@
         <div class="upload-section">
             <input type="file" id="file-input" hidden accept=".pdf,.txt">
             <button class="btn-upload" id="upload-btn">
-                <i class="fas fa-cloud-upload-alt"></i> 上传税务文档
+                <i class="fas fa-cloud-upload-alt"></i> 上传文档
             </button>
         </div>
     </aside>
@@ -41,15 +41,15 @@
         <div class="chat-container" id="chat-messages">
             <!-- 欢迎页面 -->
             <div class="welcome-screen" id="welcome-screen">
-                <h1>TaxPulse AI</h1>
-                <p style="color: var(--text-secondary); margin-bottom: 40px; font-size: 1.1rem;">您的专业 RAG 智能税务法律助手</p>
+                <h1>DocuMind</h1>
+                <p style="color: var(--text-secondary); margin-bottom: 40px; font-size: 1.1rem;">您的专业 RAG 智能文档助手</p>
 
                 <div class="features-grid">
                     <div class="feature-col">
                         <i class="fas fa-lightbulb"></i>
                         <h3>智能示例</h3>
-                        <div class="feature-item">"解析上传文件中的个税政策"</div>
-                        <div class="feature-item">"总结当前文档的税务风险"</div>
+                        <div class="feature-item">"解析上传文件中的关键信息"</div>
+                        <div class="feature-item">"总结当前文档的核心内容"</div>
                     </div>
                     <div class="feature-col">
                         <i class="fas fa-bolt"></i>
@@ -71,13 +71,13 @@
         <div class="input-area">
             <div class="input-container-inner">
                 <div class="input-box">
-                    <textarea id="user-input" placeholder="输入您想咨询的税务问题..." rows="1"></textarea>
+                    <textarea id="user-input" placeholder="输入您想咨询的问题..." rows="1"></textarea>
                     <button id="send-btn" class="send-btn" disabled>
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </div>
                 <div style="text-align: center; font-size: 0.75rem; color: var(--text-secondary); margin-top: 15px;">
-                    TaxPulse AI 可能会产生错误，请在专业指导下使用。
+                    DocuMind 可能会产生错误，请谨慎使用并核实重要信息。
                 </div>
             </div>
         </div>

@@ -8,8 +8,8 @@
     <artifactId>rag-chat-app</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>RAG Chat Application</name>
-    <description>A ChatGPT-like application with RAG capabilities using LangChain4j and ChromaDB</description>
+    <name>DocuMind</name>
+    <description>An intelligent document retrieval assistant with RAG capabilities using LangChain4j and ChromaDB</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>

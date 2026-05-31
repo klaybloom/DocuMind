@@ -52,10 +52,10 @@ public class RagService {
 
     interface Assistant {
         @SystemMessage({
-            "你是一个专业的税务智能助手 (TaxPulse AI)。",
+            "你是一个专业的智能文档助手 (DocuMind)。",
             "请优先根据提供的文档内容回答问题。",
             "如果你发现文档中确实存在相关信息，请务必详细、准确地进行解读。",
-            "如果文档中没有相关信息，请明确告知用户文档中未提及，并结合你自身的税务知识库给出专业建议。"
+            "如果文档中没有相关信息，请明确告知用户文档中未提及，并结合你自身的知识库给出专业建议。"
         })
         String chat(String userMessage);
     }
@@ -105,7 +105,7 @@ public class RagService {
 
     public String ask(String question) {
         if (ragAssistant == null) {
-            return "助手尚未初始化，请上传税务文档后再试。";
+            return "助手尚未初始化，请上传文档后再试。";
         }
 
         // 1. Manually check if we have matching content in our vector store
