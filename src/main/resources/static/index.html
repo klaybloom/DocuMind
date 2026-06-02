@@ -8,7 +8,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=6">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
@@ -20,17 +20,25 @@
             开启新对话
         </button>
 
-        <div class="sidebar-section">
-            <div class="section-label">知识库文档</div>
-            <ul class="file-list" id="file-list">
-                <!-- 文件列表将在此处动态加载 -->
-            </ul>
+        <div class="sidebar-scroll">
+            <div class="sidebar-section">
+                <div class="section-label">历史对话</div>
+                <ul class="history-list" id="history-list">
+                    <!-- 历史对话将在此处动态加载 -->
+                </ul>
+                <div class="history-empty" id="history-empty">暂无历史对话</div>
+            </div>
+
         </div>
 
-        <div class="upload-section">
-            <input type="file" id="file-input" hidden accept=".pdf,.txt">
-            <button class="btn-upload" id="upload-btn">
-                <i class="fas fa-cloud-upload-alt"></i> 上传文档
+        <div class="sidebar-footer">
+            <button class="sidebar-action-btn" id="documents-btn" type="button">
+                <i class="fas fa-folder-open"></i>
+                文档管理
+            </button>
+            <button class="sidebar-action-btn secondary" id="theme-toggle" type="button" aria-label="切换日间夜间模式">
+                <i class="fas fa-moon"></i>
+                <span id="theme-label">夜间模式</span>
             </button>
         </div>
     </aside>
@@ -42,27 +50,13 @@
             <!-- 欢迎页面 -->
             <div class="welcome-screen" id="welcome-screen">
                 <h1>DocuMind</h1>
-                <p style="color: var(--text-secondary); margin-bottom: 40px; font-size: 1.1rem;">您的专业 RAG 智能文档助手</p>
+                <p>选择一个问题开始对话</p>
 
-                <div class="features-grid">
-                    <div class="feature-col">
-                        <i class="fas fa-lightbulb"></i>
-                        <h3>智能示例</h3>
-                        <div class="feature-item">"解析上传文件中的关键信息"</div>
-                        <div class="feature-item">"总结当前文档的核心内容"</div>
-                    </div>
-                    <div class="feature-col">
-                        <i class="fas fa-bolt"></i>
-                        <h3>强大能力</h3>
-                        <div class="feature-item">基于本地文档的精准检索</div>
-                        <div class="feature-item">无上下文时切换通用知识模型</div>
-                    </div>
-                    <div class="feature-col">
-                        <i class="fas fa-shield-alt"></i>
-                        <h3>安全保障</h3>
-                        <div class="feature-item">文档仅用于本地索引分析</div>
-                        <div class="feature-item">多模型协同确保回答质量</div>
-                    </div>
+                <div class="prompt-grid">
+                    <button class="prompt-chip" type="button" data-prompt="总结当前文档的核心内容">总结当前文档</button>
+                    <button class="prompt-chip" type="button" data-prompt="提取文档中的关键信息和待办事项">提取关键信息</button>
+                    <button class="prompt-chip" type="button" data-prompt="根据已上传文档回答我的问题">根据文档问答</button>
+                    <button class="prompt-chip" type="button" data-prompt="列出文档里可能需要进一步确认的内容">列出待确认内容</button>
                 </div>
             </div>
         </div>
@@ -83,7 +77,50 @@
         </div>
     </main>
 
-    <script src="app.js?v=4"></script>
+    <div class="modal-backdrop hidden" id="document-modal" aria-hidden="true">
+        <section class="document-modal" role="dialog" aria-modal="true" aria-labelledby="document-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h2 id="document-modal-title">文档管理</h2>
+                    <p>上传、查看和删除知识库文档</p>
+                </div>
+                <button class="icon-btn" id="close-document-modal" type="button" aria-label="关闭文档管理">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="doc-lock-panel" id="doc-lock-panel">
+                <label for="document-password">管理密码</label>
+                <div class="password-row">
+                    <input id="document-password" type="password" autocomplete="current-password" placeholder="输入密码后上传文档">
+                    <button class="primary-btn" id="unlock-documents-btn" type="button">解锁</button>
+                </div>
+                <p class="modal-message" id="document-lock-message"></p>
+            </div>
+
+            <div class="doc-manager-panel hidden" id="doc-manager-panel">
+                <input type="file" id="file-input" hidden accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
+                <button class="upload-dropzone" id="upload-btn" type="button">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>上传文档</span>
+                    <small>支持 PDF、Word、Excel、PPT、TXT，单个文件最大 50MB</small>
+                </button>
+                <p class="modal-message" id="upload-status"></p>
+
+                <div class="document-list-header">
+                    <span>文档列表</span>
+                    <button class="icon-text-btn" id="refresh-files-btn" type="button">
+                        <i class="fas fa-sync-alt"></i>
+                        刷新
+                    </button>
+                </div>
+                <ul class="file-list" id="file-list"></ul>
+                <div class="file-empty" id="file-empty">暂无文档</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js?v=6"></script>
 </body>
 
 </html>
