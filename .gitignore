@@ -33,4 +33,7 @@ Thumbs.db
 
 # Project specific
 documents/
-rag-chat-app/documents/
+
+# Configuration files with secrets
+application-local.yml
+**/application-local.yml

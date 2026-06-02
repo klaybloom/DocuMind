@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.demo</groupId>
-    <artifactId>rag-chat-app</artifactId>
+    <artifactId>documind</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>DocuMind</name>
-    <description>An intelligent document retrieval assistant with RAG capabilities using LangChain4j and ChromaDB</description>
+    <description>Intelligent document retrieval assistant with RAG capabilities using LangChain4j</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -28,6 +28,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Validation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
         <!-- LangChain4j Core -->
