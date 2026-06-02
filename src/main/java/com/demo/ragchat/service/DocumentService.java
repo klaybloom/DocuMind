@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
 public class DocumentService {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentService.class);
-    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList("pdf", "txt");
+    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(
+            "pdf", "txt", "doc", "docx", "ppt", "pptx", "xls", "xlsx");
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
     @Value("${app.documents-path}")

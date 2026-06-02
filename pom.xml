@@ -64,6 +64,13 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
+        <!-- LangChain4j Apache POI Parser (Word/Excel/PowerPoint) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-poi</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
         <!-- LangChain4j Embeddings -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
