@@ -5,11 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocuMind | 智能文档助手</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 
 <body>
@@ -64,6 +60,10 @@
         <!-- 输入区域 -->
         <div class="input-area">
             <div class="input-container-inner">
+                <div class="knowledge-base-bar">
+                    <label for="knowledge-base-select">知识库</label>
+                    <select id="knowledge-base-select"></select>
+                </div>
                 <div class="input-box">
                     <textarea id="user-input" placeholder="输入您想咨询的问题..." rows="1"></textarea>
                     <button id="send-btn" class="send-btn" disabled>
@@ -89,23 +89,27 @@
                 </button>
             </div>
 
-            <div class="doc-lock-panel" id="doc-lock-panel">
-                <label for="document-password">管理密码</label>
-                <div class="password-row">
-                    <input id="document-password" type="password" autocomplete="current-password" placeholder="输入密码后上传文档">
-                    <button class="primary-btn" id="unlock-documents-btn" type="button">解锁</button>
-                </div>
-                <p class="modal-message" id="document-lock-message"></p>
-            </div>
-
-            <div class="doc-manager-panel hidden" id="doc-manager-panel">
+            <div class="doc-manager-panel" id="doc-manager-panel">
                 <input type="file" id="file-input" hidden accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
+                <div class="knowledge-base-admin">
+                    <label for="document-knowledge-base-select">目标知识库</label>
+                    <div class="knowledge-base-admin-row">
+                        <select id="document-knowledge-base-select"></select>
+                        <input id="knowledge-base-input" type="text" maxlength="60" placeholder="新知识库名，可留空">
+                    </div>
+                    <input id="document-owner-input" type="text" maxlength="80" placeholder="负责人，可留空">
+                </div>
                 <button class="upload-dropzone" id="upload-btn" type="button">
                     <i class="fas fa-cloud-upload-alt"></i>
                     <span>上传文档</span>
-                    <small>支持 PDF、Word、Excel、PPT、TXT，单个文件最大 50MB</small>
+                    <small>支持 PDF、Word、Excel、PPT、TXT，默认单个文件最大 50MB，可由部署配置调整</small>
                 </button>
                 <p class="modal-message" id="upload-status"></p>
+
+                <div class="document-list-header">
+                    <span>知识库状态</span>
+                </div>
+                <ul class="status-list" id="status-list"></ul>
 
                 <div class="document-list-header">
                     <span>文档列表</span>
@@ -116,11 +120,28 @@
                 </div>
                 <ul class="file-list" id="file-list"></ul>
                 <div class="file-empty" id="file-empty">暂无文档</div>
+
+                <div class="document-list-header">
+                    <span>知识缺口</span>
+                    <button class="icon-text-btn" id="generate-faq-btn" type="button">
+                        <i class="fas fa-file-lines"></i>
+                        生成 FAQ 草稿
+                    </button>
+                </div>
+                <ul class="gap-list" id="gap-list"></ul>
+                <div class="gap-empty" id="gap-empty">暂无知识缺口</div>
+                <textarea class="faq-draft" id="faq-draft" readonly hidden></textarea>
+
+                <div class="document-list-header">
+                    <span>最近操作</span>
+                </div>
+                <ul class="audit-list" id="audit-list"></ul>
+                <div class="audit-empty" id="audit-empty">暂无审计记录</div>
             </div>
         </section>
     </div>
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 
 </html>

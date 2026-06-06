@@ -4,27 +4,60 @@ server:
 spring:
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
+      max-request-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
 
 # Application Configuration
 app:
   # Document storage directory
   documents-path: ${user.dir}/documents
+  documents:
+    stale-days: ${DOCUMIND_STALE_DAYS:180}
+    max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
+
+  audit:
+    max-events: ${DOCUMIND_AUDIT_MAX_EVENTS:10000}
+
+  chat:
+    rate-limit-per-minute: ${DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE:30}
+    stream:
+      timeout-seconds: ${DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS:120}
+      core-pool-size: ${DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE:4}
+      max-pool-size: ${DOCUMIND_CHAT_STREAM_MAX_POOL_SIZE:8}
+      queue-capacity: ${DOCUMIND_CHAT_STREAM_QUEUE_CAPACITY:100}
+
+  rag:
+    max-results: ${DOCUMIND_RAG_MAX_RESULTS:3}
+    min-score: ${DOCUMIND_RAG_MIN_SCORE:0.65}
+    keyword-min-hit-ratio: ${DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO:0.25}
+    retrieval-pool-size: ${DOCUMIND_RAG_RETRIEVAL_POOL_SIZE:50}
+    chunk-size: ${DOCUMIND_RAG_CHUNK_SIZE:500}
+    chunk-overlap: ${DOCUMIND_RAG_CHUNK_OVERLAP:50}
+
+  # CORS Configuration
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080}
 
   # DeepSeek API Configuration
   deepseek:
-    api-key: YOUR_DEEPSEEK_API_KEY_HERE
-    base-url: https://api.deepseek.com
-    model: deepseek-chat
+    # 必填：也可以通过 DEEPSEEK_API_KEY 环境变量提供。
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:60}
 
-  # ChromaDB Configuration
-  chroma:
-    url: http://localhost:8000
-    collection-name: documents
+  # Basic authentication for internal deployment
+  security:
+    admin-username: ${DOCUMIND_ADMIN_USERNAME:admin}
+    # 必填：也可以通过 DOCUMIND_ADMIN_PASSWORD 环境变量提供。
+    admin-password: ${DOCUMIND_ADMIN_PASSWORD:}
+    user-username: ${DOCUMIND_USER_USERNAME:}
+    user-password: ${DOCUMIND_USER_PASSWORD:}
+    user-knowledge-bases: ${DOCUMIND_USER_KNOWLEDGE_BASES:default}
+    min-password-length: ${DOCUMIND_MIN_PASSWORD_LENGTH:12}
 
 # Logging
 logging:
   level:
-    com.demo.ragchat: DEBUG
-    dev.langchain4j: DEBUG
+    com.demo.ragchat: INFO
+    dev.langchain4j: WARN

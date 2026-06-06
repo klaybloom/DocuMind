@@ -1,9 +1,14 @@
 package com.demo.ragchat.dto;
 
+import java.util.Collections;
+import java.util.List;
+
 public class ChatResponse {
 
     private String response;
     private String error;
+    private List<SourceReference> sources = Collections.emptyList();
+    private boolean fromDocuments;
 
     public ChatResponse() {
     }
@@ -15,6 +20,14 @@ public class ChatResponse {
     public static ChatResponse success(String response) {
         ChatResponse chatResponse = new ChatResponse();
         chatResponse.setResponse(response);
+        return chatResponse;
+    }
+
+    public static ChatResponse success(RagAnswer answer) {
+        ChatResponse chatResponse = new ChatResponse();
+        chatResponse.setResponse(answer.getAnswer());
+        chatResponse.setSources(answer.getSources());
+        chatResponse.setFromDocuments(answer.isFromDocuments());
         return chatResponse;
     }
 
@@ -38,5 +51,21 @@ public class ChatResponse {
 
     public void setError(String error) {
         this.error = error;
+    }
+
+    public List<SourceReference> getSources() {
+        return sources;
+    }
+
+    public void setSources(List<SourceReference> sources) {
+        this.sources = sources == null ? Collections.emptyList() : sources;
+    }
+
+    public boolean isFromDocuments() {
+        return fromDocuments;
+    }
+
+    public void setFromDocuments(boolean fromDocuments) {
+        this.fromDocuments = fromDocuments;
     }
 }

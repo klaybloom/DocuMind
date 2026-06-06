@@ -27,21 +27,18 @@ public class LangChainConfig {
     @Value("${app.deepseek.model}")
     private String modelName;
 
-    @Value("${app.chroma.url}")
-    private String chromaUrl;
-
-    @Value("${app.chroma.collection-name}")
-    private String collectionName;
+    @Value("${app.deepseek.timeout-seconds:60}")
+    private long timeoutSeconds;
 
     @Bean
     public ChatLanguageModel chatLanguageModel() {
         return OpenAiChatModel.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .modelName(modelName)
-                .timeout(Duration.ofSeconds(60))
-                .logRequests(true)
-                .logResponses(true)
+                .apiKey(requireConfigured(apiKey, "DEEPSEEK_API_KEY"))
+                .baseUrl(requireConfigured(baseUrl, "DEEPSEEK_BASE_URL"))
+                .modelName(requireConfigured(modelName, "DEEPSEEK_MODEL"))
+                .timeout(modelTimeout())
+                .logRequests(false)
+                .logResponses(false)
                 .tokenizer(new OpenAiTokenizer("gpt-3.5-turbo"))
                 .build();
     }
@@ -49,12 +46,12 @@ public class LangChainConfig {
     @Bean
     public StreamingChatLanguageModel streamingChatLanguageModel() {
         return OpenAiStreamingChatModel.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .modelName(modelName)
-                .timeout(Duration.ofSeconds(60))
-                .logRequests(true)
-                .logResponses(true)
+                .apiKey(requireConfigured(apiKey, "DEEPSEEK_API_KEY"))
+                .baseUrl(requireConfigured(baseUrl, "DEEPSEEK_BASE_URL"))
+                .modelName(requireConfigured(modelName, "DEEPSEEK_MODEL"))
+                .timeout(modelTimeout())
+                .logRequests(false)
+                .logResponses(false)
                 .tokenizer(new OpenAiTokenizer("gpt-3.5-turbo"))
                 .build();
     }
@@ -67,8 +64,17 @@ public class LangChainConfig {
 
     @Bean
     public EmbeddingStore<TextSegment> embeddingStore() {
-        // 由于 ChromaDB Docker 兼容性问题（Numpy 2.0 / API 405），回退到内存存储。
-        // 这确保了演示可以开箱即用。
         return new dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore<>();
+    }
+
+    Duration modelTimeout() {
+        return Duration.ofSeconds(Math.max(5, timeoutSeconds));
+    }
+
+    private String requireConfigured(String value, String name) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalStateException("必须配置 " + name);
+        }
+        return value;
     }
 }

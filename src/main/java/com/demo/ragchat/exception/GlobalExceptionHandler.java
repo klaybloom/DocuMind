@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -22,12 +22,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ChatResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        StringBuilder errorMessage = new StringBuilder();
-        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errorMessage.append(error.getDefaultMessage()).append("; ");
-        }
+        String errorMessage = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(FieldError::getDefaultMessage)
+                .distinct()
+                .collect(Collectors.joining("; "));
         logger.warn("Validation error: {}", errorMessage);
-        return ResponseEntity.badRequest().body(ChatResponse.error(errorMessage.toString()));
+        return ResponseEntity.badRequest().body(ChatResponse.error(errorMessage));
     }
 
     @ExceptionHandler(InvalidFileException.class)
@@ -47,7 +48,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<FileUploadResponse> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         logger.warn("File size exceeded: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(FileUploadResponse.error("文件大小超过限制（最大 50MB）"));
+                .body(FileUploadResponse.error("文件大小超过上传限制"));
     }
 
     @ExceptionHandler(Exception.class)

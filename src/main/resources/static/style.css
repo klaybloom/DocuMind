@@ -17,6 +17,7 @@
     --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
     --danger: #ef4444;
     --success: #22c55e;
+    --warning: #f59e0b;
 }
 
 :root[data-theme="light"] {
@@ -38,6 +39,7 @@
     --shadow: 0 24px 80px rgba(0, 0, 0, 0.14);
     --danger: #dc2626;
     --success: #15803d;
+    --warning: #b45309;
 }
 
 * {
@@ -47,7 +49,7 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--bg-main);
     color: var(--text-primary);
     display: flex;
@@ -63,6 +65,108 @@ textarea {
 
 button {
     border: none;
+}
+
+.fas,
+.far {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1em;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.fa-plus::before {
+    content: "+";
+}
+
+.fa-comment::before {
+    content: "...";
+    font-size: 0.72em;
+}
+
+.fa-trash-alt::before {
+    content: "del";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-download::before {
+    content: "↓";
+}
+
+.fa-check::before {
+    content: "✓";
+}
+
+.fa-folder-open::before {
+    content: "KB";
+    font-size: 0.62em;
+    letter-spacing: 0;
+}
+
+.fa-moon::before {
+    content: "N";
+}
+
+.fa-sun::before {
+    content: "D";
+}
+
+.fa-paper-plane::before {
+    content: ">";
+}
+
+.fa-times::before {
+    content: "x";
+}
+
+.fa-cloud-upload-alt::before {
+    content: "UP";
+    font-size: 0.72em;
+    letter-spacing: 0;
+}
+
+.fa-sync-alt::before {
+    content: "R";
+}
+
+.fa-file-lines::before {
+    content: "FAQ";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-file-pdf::before {
+    content: "PDF";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-file-word::before {
+    content: "DOC";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-file-excel::before {
+    content: "XLS";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-file-powerpoint::before {
+    content: "PPT";
+    font-size: 0.58em;
+    letter-spacing: 0;
+}
+
+.fa-file-alt::before {
+    content: "TXT";
+    font-size: 0.58em;
+    letter-spacing: 0;
 }
 
 .hidden {
@@ -134,12 +238,18 @@ button {
 }
 
 .history-list,
-.file-list {
+.file-list,
+.status-list,
+.gap-list,
+.audit-list {
     list-style: none;
 }
 
 .history-item,
-.file-item {
+.file-item,
+.status-item,
+.gap-item,
+.audit-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -153,6 +263,9 @@ button {
 
 .history-item:hover,
 .file-item:hover,
+.status-item:hover,
+.gap-item:hover,
+.audit-item:hover,
 .history-item.active {
     background: var(--bg-hover);
 }
@@ -175,7 +288,109 @@ button {
     font-size: 0.9rem;
 }
 
+.status-item,
+.gap-item,
+.audit-item {
+    align-items: flex-start;
+    gap: 4px;
+    cursor: default;
+}
+
+.status-item,
+.audit-item {
+    flex-direction: column;
+}
+
+.gap-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 28px;
+    align-items: center;
+    column-gap: 8px;
+}
+
+.status-item span,
+.gap-item span,
+.audit-item span {
+    max-width: 100%;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-item small,
+.gap-item small,
+.audit-item small {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
+.gap-item span,
+.gap-item small {
+    grid-column: 1;
+}
+
+.resolve-gap-btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+}
+
+.gap-item:hover .resolve-gap-btn {
+    opacity: 1;
+}
+
+.resolve-gap-btn:hover {
+    color: var(--success);
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.file-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.file-status {
+    width: fit-content;
+    max-width: 100%;
+    border-radius: 6px;
+    padding: 2px 6px;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+    font-size: 0.72rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-status.indexed {
+    color: var(--success);
+}
+
+.file-status.failed {
+    color: var(--danger);
+}
+
+.file-status.indexing,
+.file-status.pending {
+    color: var(--warning);
+}
+
 .delete-history-btn,
+.download-file-btn,
 .delete-file-btn {
     width: 28px;
     height: 28px;
@@ -188,8 +403,14 @@ button {
 }
 
 .history-item:hover .delete-history-btn,
+.file-item:hover .download-file-btn,
 .file-item:hover .delete-file-btn {
     opacity: 1;
+}
+
+.download-file-btn:hover {
+    color: var(--accent);
+    background: rgba(99, 102, 241, 0.12);
 }
 
 .delete-history-btn:hover,
@@ -199,7 +420,9 @@ button {
 }
 
 .history-empty,
-.file-empty {
+.file-empty,
+.gap-empty,
+.audit-empty {
     color: var(--text-muted);
     font-size: 0.88rem;
     padding: 12px 10px;
@@ -370,6 +593,44 @@ button {
     width: min(100%, 780px);
 }
 
+.knowledge-base-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+
+.knowledge-base-bar label,
+.knowledge-base-admin label {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.knowledge-base-bar select,
+.knowledge-base-admin select,
+.knowledge-base-admin input,
+.faq-draft {
+    height: 36px;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    padding: 0 10px;
+    outline: none;
+}
+
+.knowledge-base-bar select:focus,
+.knowledge-base-admin select:focus,
+.knowledge-base-admin input:focus,
+.faq-draft:focus {
+    border-color: var(--text-muted);
+}
+
 .input-box {
     min-height: 56px;
     background: var(--bg-input);
@@ -533,7 +794,6 @@ button {
     color: var(--text-primary);
 }
 
-.doc-lock-panel,
 .doc-manager-panel {
     padding: 22px;
 }
@@ -542,46 +802,17 @@ button {
     overflow-y: auto;
 }
 
-.doc-lock-panel label {
-    display: block;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-    font-size: 0.9rem;
-}
-
-.password-row {
+.knowledge-base-admin {
     display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.knowledge-base-admin-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1fr);
     gap: 10px;
-}
-
-.password-row input {
-    flex: 1;
-    min-width: 0;
-    height: 44px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    padding: 0 12px;
-    outline: none;
-}
-
-.password-row input:focus {
-    border-color: var(--accent);
-}
-
-.primary-btn {
-    height: 44px;
-    padding: 0 16px;
-    border-radius: 8px;
-    background: var(--accent);
-    color: white;
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.primary-btn:hover {
-    background: var(--accent-hover);
 }
 
 .upload-dropzone {
@@ -658,12 +889,32 @@ button {
     padding: 8px 10px;
 }
 
-.file-list {
+.file-list,
+.status-list,
+.gap-list,
+.audit-list {
     max-height: 300px;
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 6px;
+}
+
+.status-list,
+.gap-list,
+.audit-list {
+    max-height: 170px;
+}
+
+.faq-draft {
+    width: 100%;
+    min-height: 190px;
+    margin-top: 10px;
+    padding: 12px;
+    resize: vertical;
+    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.82rem;
 }
 
 .file-pdf {
@@ -743,6 +994,10 @@ button {
     .input-area {
         padding: 22px 12px;
     }
+
+    .knowledge-base-admin-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 560px) {
@@ -764,12 +1019,7 @@ button {
     }
 
     .modal-header,
-    .doc-lock-panel,
     .doc-manager-panel {
         padding: 16px;
-    }
-
-    .password-row {
-        flex-direction: column;
     }
 }
