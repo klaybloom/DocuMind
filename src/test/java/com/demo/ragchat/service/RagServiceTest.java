@@ -66,6 +66,7 @@ class RagServiceTest {
                 "session-2",
                 "Legal",
                 tokens::add,
+                sources -> {},
                 () -> completed.set(true),
                 errors::add
         );
@@ -91,6 +92,7 @@ class RagServiceTest {
                 "session-empty-stream",
                 "HR",
                 tokens::add,
+                sources -> {},
                 () -> completed.set(true),
                 errors::add
         );

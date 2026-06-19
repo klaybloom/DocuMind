@@ -5,10 +5,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocuMind | 智能文档助手</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
     <link rel="stylesheet" href="style.css?v=7">
 </head>
 
 <body>
+    <!-- 登录界面 -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-card">
+            <div class="login-logo">🧠</div>
+            <h1 class="login-title">DocuMind</h1>
+            <p class="login-subtitle">请登录以继续</p>
+            <form id="login-form" autocomplete="on">
+                <div class="login-field">
+                    <label for="login-username">用户名</label>
+                    <input type="text" id="login-username" name="username" autocomplete="username" required>
+                </div>
+                <div class="login-field">
+                    <label for="login-password">密码</label>
+                    <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+                </div>
+                <div class="login-error hidden" id="login-error"></div>
+                <button type="submit" class="login-btn" id="login-btn">登录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主应用（登录后显示） -->
+    <div class="app-root hidden" id="app-root">
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
         <button class="new-chat-btn" id="new-chat-btn">
@@ -28,6 +52,14 @@
         </div>
 
         <div class="sidebar-footer">
+            <div class="user-info hidden" id="user-info">
+                <div class="user-avatar" id="user-avatar">A</div>
+                <div class="user-detail">
+                    <span class="user-name" id="user-name">用户</span>
+                    <span class="user-role" id="user-role">普通用户</span>
+                </div>
+                <button class="logout-btn" id="logout-btn" type="button" title="退出登录">⏻</button>
+            </div>
             <button class="sidebar-action-btn" id="documents-btn" type="button">
                 <i class="fas fa-folder-open"></i>
                 文档管理
@@ -113,10 +145,31 @@
 
                 <div class="document-list-header">
                     <span>文档列表</span>
-                    <button class="icon-text-btn" id="refresh-files-btn" type="button">
-                        <i class="fas fa-sync-alt"></i>
-                        刷新
+                    <div class="document-list-actions">
+                        <button class="icon-text-btn" id="batch-toggle-btn" type="button" title="批量选择">
+                            <i class="fas fa-list-check"></i>
+                            批量
+                        </button>
+                        <button class="icon-text-btn" id="reindex-btn" type="button" title="重新构建索引">
+                            <i class="fas fa-rotate"></i>
+                            重新索引
+                        </button>
+                        <button class="icon-text-btn" id="refresh-files-btn" type="button">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+                <div class="batch-bar hidden" id="batch-bar">
+                    <label class="batch-select-all">
+                        <input type="checkbox" id="batch-select-all-cb">
+                        <span>全选</span>
+                    </label>
+                    <button class="batch-delete-btn" id="batch-delete-btn" type="button" disabled>
+                        <i class="fas fa-trash-alt"></i>
+                        删除选中 (<span id="batch-count">0</span>)
                     </button>
+                    <button class="batch-cancel-btn" id="batch-cancel-btn" type="button">取消</button>
                 </div>
                 <ul class="file-list" id="file-list"></ul>
                 <div class="file-empty" id="file-empty">暂无文档</div>
@@ -140,6 +193,7 @@
             </div>
         </section>
     </div>
+    </div><!-- /app-root -->
 
     <script src="app.js?v=7"></script>
 </body>

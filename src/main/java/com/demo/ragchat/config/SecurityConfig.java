@@ -38,10 +38,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/health/**").hasRole("ADMIN")
+                        .requestMatchers("/api/auth/me").permitAll()
                         .requestMatchers("/api/files/knowledge-bases").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/files/**").hasRole("ADMIN")
                         .requestMatchers("/api/chat/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/", "/index.html", "/app.js", "/style.css", "/favicon.ico").authenticated()
+                        .requestMatchers("/", "/index.html", "/app.js", "/style.css", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )
                 .httpBasic(Customizer.withDefaults())

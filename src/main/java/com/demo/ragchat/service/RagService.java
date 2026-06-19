@@ -216,6 +216,7 @@ public class RagService {
                           String sessionId,
                           String knowledgeBase,
                           Consumer<String> onNext,
+                          Consumer<List<SourceReference>> onSources,
                           Runnable onComplete,
                           Consumer<Throwable> onError) {
         try {
@@ -245,11 +246,11 @@ public class RagService {
                 @Override
                 public void onComplete(Response<AiMessage> response) {
                     if (generated.length() == 0) {
-                        handleEmptyStreamingResponse(question, kb, sources, messages, memory, onNext, onComplete, onError);
+                        handleEmptyStreamingResponse(question, kb, sources, messages, memory, onNext, onSources, onComplete, onError);
                         return;
                     }
                     if (!sources.isEmpty()) {
-                        onNext.accept(formatSources(sources));
+                        onSources.accept(sources);
                     } else {
                         onNext.accept(formatOwnerSuggestion(kb));
                     }
@@ -260,7 +261,7 @@ public class RagService {
 
                 @Override
                 public void onError(Throwable error) {
-                    handleStreamingError(error, question, kb, sources, messages, memory, generated, onNext, onComplete, onError);
+                    handleStreamingError(error, question, kb, sources, messages, memory, generated, onNext, onSources, onComplete, onError);
                 }
             });
         } catch (Exception e) {
@@ -443,12 +444,16 @@ public class RagService {
                                               List<ChatMessage> messages,
                                               MessageWindowChatMemory memory,
                                               Consumer<String> onNext,
+                                              Consumer<List<SourceReference>> onSources,
                                               Runnable onComplete,
                                               Consumer<Throwable> onError) {
         try {
             logger.warn("Streaming model completed without tokens; using non-streaming response, sourceCount={}", sources.size());
             String response = chatLanguageModel.generate(messages).content().text();
-            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response + formatSources(sources);
+            if (!sources.isEmpty()) {
+                onSources.accept(sources);
+            }
+            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response;
             onNext.accept(answer);
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));
@@ -467,9 +472,13 @@ public class RagService {
                                       MessageWindowChatMemory memory,
                                       StringBuilder generated,
                                       Consumer<String> onNext,
+                                      Consumer<List<SourceReference>> onSources,
                                       Runnable onComplete,
                                       Consumer<Throwable> onError) {
         if (generated.length() > 0) {
+            if (!sources.isEmpty()) {
+                onSources.accept(sources);
+            }
             onError.accept(error);
             return;
         }
@@ -479,7 +488,10 @@ public class RagService {
                     sources.size(),
                     error.toString());
             String response = chatLanguageModel.generate(messages).content().text();
-            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response + formatSources(sources);
+            if (!sources.isEmpty()) {
+                onSources.accept(sources);
+            }
+            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response;
             onNext.accept(answer);
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));

@@ -9,6 +9,7 @@ import com.demo.ragchat.service.RagService;
 import com.demo.ragchat.exception.GlobalExceptionHandler;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -51,7 +52,8 @@ class ChatControllerHttpTest {
                 auditService,
                 accessService,
                 rateLimitService,
-                Runnable::run
+                Runnable::run,
+                new ObjectMapper()
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -269,7 +271,8 @@ class ChatControllerHttpTest {
                 new RecordingAuditService(),
                 new KnowledgeBaseAccessService(documentService),
                 new FakeRateLimitService(),
-                Runnable::run
+                Runnable::run,
+                new ObjectMapper()
         );
         ReflectionTestUtils.setField(controller, "streamTimeoutSeconds", 10L);
         assertThat(controller.streamTimeoutMillis()).isEqualTo(30_000L);
@@ -327,10 +330,14 @@ class ChatControllerHttpTest {
                               String sessionId,
                               String knowledgeBase,
                               java.util.function.Consumer<String> onNext,
+                              java.util.function.Consumer<List<com.demo.ragchat.dto.SourceReference>> onSources,
                               Runnable onComplete,
                               java.util.function.Consumer<Throwable> onError) {
             streamCalls++;
             onNext.accept("测试回答");
+            onSources.accept(List.of(
+                    new com.demo.ragchat.dto.SourceReference(1, "HR", "test.pdf", null, "HR/test.pdf#1", "摘录文本", 0.85)
+            ));
             onComplete.run();
         }
 

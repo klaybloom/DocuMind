@@ -133,6 +133,18 @@ button {
     content: "R";
 }
 
+.fa-rotate::before {
+    content: "Re";
+    font-size: 0.62em;
+    letter-spacing: 0;
+}
+
+.fa-list-check::before {
+    content: "Sel";
+    font-size: 0.52em;
+    letter-spacing: 0;
+}
+
 .fa-file-lines::before {
     content: "FAQ";
     font-size: 0.58em;
@@ -578,6 +590,145 @@ button {
     line-height: 1.55;
 }
 
+.source-cards {
+    margin: 12px 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.source-cards-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.source-cards-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.source-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    border-left: 3px solid var(--accent);
+    transition: border-color 0.16s ease;
+}
+
+.source-card:hover {
+    border-left-color: var(--accent-hover);
+}
+
+.source-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.source-card-icon {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.source-card-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.source-card-score {
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.source-card-score.high {
+    color: var(--success);
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.source-card-score.medium {
+    color: var(--warning);
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.source-card-score.low {
+    color: var(--text-muted);
+    background: var(--bg-hover);
+}
+
+.source-card-detail {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.source-card-chunk,
+.source-card-page {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.source-card-excerpt {
+    font-size: 0.84rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    transition: max-height 0.25s ease;
+}
+
+.source-card-excerpt.collapsed {
+    max-height: 3em;
+    overflow: hidden;
+    position: relative;
+}
+
+.source-card-excerpt.collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1.5em;
+    background: linear-gradient(transparent, var(--bg-elevated));
+    pointer-events: none;
+}
+
+.source-card-toggle {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-top: 2px;
+}
+
+.source-card-toggle:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
 .input-area {
     position: absolute;
     left: 0;
@@ -882,6 +1033,93 @@ button {
     font-weight: 600;
 }
 
+.document-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.batch-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+}
+
+.batch-select-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.84rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.batch-select-all input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.batch-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease;
+}
+
+.batch-delete-btn:hover:not(:disabled) {
+    background: var(--danger);
+    color: #fff;
+}
+
+.batch-delete-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.batch-cancel-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.batch-cancel-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.file-item.batch-selected {
+    background: rgba(16, 163, 127, 0.1);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+}
+
+.file-item .batch-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
 .icon-text-btn {
     display: inline-flex;
     align-items: center;
@@ -1021,5 +1259,196 @@ button {
     .modal-header,
     .doc-manager-panel {
         padding: 16px;
+    }
+}
+
+/* ===== 登录界面 ===== */
+
+.login-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-main);
+    z-index: 9999;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 40px 32px;
+    text-align: center;
+}
+
+.login-logo {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.login-field {
+    text-align: left;
+    margin-bottom: 16px;
+}
+
+.login-field label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.login-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.16s ease;
+}
+
+.login-field input:focus {
+    border-color: var(--accent);
+}
+
+.login-error {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.16s ease, opacity 0.16s ease;
+}
+
+.login-btn:hover {
+    background: var(--accent-hover);
+}
+
+.login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ===== 用户信息（侧边栏底部） ===== */
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--soft-border);
+    margin-bottom: 6px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.user-detail {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.user-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-role {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.logout-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.logout-btn:hover {
+    background: var(--bg-hover);
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ===== app-root 容器 ===== */
+
+.app-root {
+    display: flex;
+    height: 100vh;
+}
+
+.app-root.hidden {
+    display: none;
+}
+
+/* ===== 响应式 ===== */
+
+@media (max-width: 840px) {
+    .user-info {
+        padding: 6px 2px;
+    }
+
+    .user-avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
     }
 }

@@ -3,10 +3,12 @@ package com.demo.ragchat.controller;
 import com.demo.ragchat.dto.ChatRequest;
 import com.demo.ragchat.dto.ChatResponse;
 import com.demo.ragchat.dto.RagAnswer;
+import com.demo.ragchat.dto.SourceReference;
 import com.demo.ragchat.service.AuditService;
 import com.demo.ragchat.service.KnowledgeBaseAccessService;
 import com.demo.ragchat.service.RateLimitService;
 import com.demo.ragchat.service.RagService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -40,6 +43,7 @@ public class ChatController {
     private final KnowledgeBaseAccessService knowledgeBaseAccessService;
     private final RateLimitService rateLimitService;
     private final Executor chatStreamExecutor;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.chat.stream.timeout-seconds:120}")
     private long streamTimeoutSeconds;
@@ -48,12 +52,14 @@ public class ChatController {
                           AuditService auditService,
                           KnowledgeBaseAccessService knowledgeBaseAccessService,
                           RateLimitService rateLimitService,
-                          @Qualifier("chatStreamExecutor") Executor chatStreamExecutor) {
+                          @Qualifier("chatStreamExecutor") Executor chatStreamExecutor,
+                          ObjectMapper objectMapper) {
         this.ragService = ragService;
         this.auditService = auditService;
         this.knowledgeBaseAccessService = knowledgeBaseAccessService;
         this.rateLimitService = rateLimitService;
         this.chatStreamExecutor = chatStreamExecutor;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -125,6 +131,7 @@ public class ChatController {
                     scopedSessionId(principal, request.getSessionId()),
                     request.getKnowledgeBase(),
                     token -> sendEmitterEvent(emitter, "token", token),
+                    sources -> sendSourcesEvent(emitter, sources),
                     () -> {
                         sendEmitterEvent(emitter, "done", "");
                         emitter.complete();
@@ -175,6 +182,15 @@ public class ChatController {
         } catch (IOException e) {
             logger.warn("Failed to send SSE event: {}", eventName, e);
             emitter.completeWithError(e);
+        }
+    }
+
+    private void sendSourcesEvent(SseEmitter emitter, List<SourceReference> sources) {
+        try {
+            String json = objectMapper.writeValueAsString(sources);
+            sendEmitterEvent(emitter, "sources", json);
+        } catch (IOException e) {
+            logger.warn("Failed to serialize sources for SSE event", e);
         }
     }
 
