@@ -58,6 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEBUG_KEY = 'documind_debug_mode';
     const DEFAULT_KNOWLEDGE_BASE = 'default';
 
+    // Lucide icon helper
+    function refreshIcons() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+    refreshIcons();
+
     // Initialize debug toggle state
     if (debugToggle) {
         debugToggle.checked = debugMode;
@@ -259,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             li.dataset.id = conv.id;
 
             const icon = document.createElement('i');
-            icon.className = 'far fa-comment';
+            icon.setAttribute('data-lucide', 'message-square');
 
             const title = document.createElement('span');
             title.className = 'history-title';
@@ -269,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
             del.className = 'delete-history-btn';
             del.type = 'button';
             del.setAttribute('aria-label', '删除对话');
-            del.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            del.innerHTML = '<i data-lucide="trash-2"></i>';
             del.addEventListener('click', (e) => {
                 e.stopPropagation();
                 deleteConversation(conv.id);
@@ -281,6 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             li.addEventListener('click', () => openConversation(conv.id));
             historyList.appendChild(li);
         });
+        refreshIcons();
     }
 
     function clearChatDom() {
@@ -295,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearChatDom();
         if (welcomeScreen) welcomeScreen.style.display = 'none';
 
+        chatMessages.classList.add('no-animate');
         conv.messages.forEach(m => {
             if (m.role === 'assistant') {
                 appendMessage('assistant', formatResponse(m.text), null, true);
@@ -302,6 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 appendMessage('user', m.text);
             }
         });
+        chatMessages.classList.remove('no-animate');
         renderHistory();
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -334,13 +345,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.dataset.theme = nextTheme;
         localStorage.setItem(THEME_KEY, nextTheme);
 
-        const icon = themeToggle.querySelector('i');
-        if (nextTheme === 'dark') {
-            icon.className = 'fas fa-sun';
-            themeLabel.textContent = '日间模式';
-        } else {
-            icon.className = 'fas fa-moon';
-            themeLabel.textContent = '夜间模式';
+        const icon = themeToggle.querySelector('[data-lucide]');
+        if (icon) {
+            // Rotation crossfade animation
+            icon.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            icon.style.transform = 'rotate(90deg)';
+            icon.style.opacity = '0';
+            setTimeout(() => {
+                if (nextTheme === 'dark') {
+                    icon.setAttribute('data-lucide', 'sun');
+                    themeLabel.textContent = '日间模式';
+                } else {
+                    icon.setAttribute('data-lucide', 'moon');
+                    themeLabel.textContent = '夜间模式';
+                }
+                refreshIcons();
+                // Re-query after refreshIcons replaces <i> with <svg>
+                const newIcon = themeToggle.querySelector('[data-lucide]');
+                if (newIcon) {
+                    newIcon.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                    newIcon.style.opacity = '0';
+                    newIcon.style.transform = 'rotate(0)';
+                    // Force reflow then animate in
+                    newIcon.offsetHeight;
+                    newIcon.style.opacity = '1';
+                }
+            }, 150);
         }
     }
 
@@ -456,8 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     li.appendChild(cb);
                 }
 
-                const icon = document.createElement('i');
-                icon.className = getFileIcon(file.fileName);
+                const icon = getFileIconElement(file.fileName);
 
                 const meta = document.createElement('div');
                 meta.className = 'file-meta';
@@ -485,21 +514,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 download.className = 'download-file-btn';
                 download.type = 'button';
                 download.setAttribute('aria-label', `下载 ${file.fileName}`);
-                download.innerHTML = '<i class="fas fa-download"></i>';
+                download.innerHTML = '<i data-lucide="download"></i>';
                 download.addEventListener('click', () => downloadFile(file.fileName, file.knowledgeBase));
 
                 const reindex = document.createElement('button');
                 reindex.className = 'reindex-file-btn';
                 reindex.type = 'button';
                 reindex.setAttribute('aria-label', `重新索引 ${file.fileName}`);
-                reindex.innerHTML = '<i class="fas fa-sync-alt"></i>';
+                reindex.innerHTML = '<i data-lucide="refresh-cw"></i>';
                 reindex.addEventListener('click', () => reindexFile(file.fileName, file.knowledgeBase));
 
                 const del = document.createElement('button');
                 del.className = 'delete-file-btn';
                 del.type = 'button';
                 del.setAttribute('aria-label', `删除 ${file.fileName}`);
-                del.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                del.innerHTML = '<i data-lucide="trash-2"></i>';
                 del.addEventListener('click', () => deleteFile(file.fileName, file.knowledgeBase));
 
                 li.appendChild(icon);
@@ -509,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.appendChild(del);
                 fileList.appendChild(li);
             });
+            refreshIcons();
         } catch (error) {
             console.error('Error loading files:', error);
             fileList.innerHTML = '';
@@ -567,13 +597,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolve.type = 'button';
                 resolve.title = '标记已处理';
                 resolve.setAttribute('aria-label', `标记已处理: ${gap.question}`);
-                resolve.innerHTML = '<i class="fas fa-check"></i>';
+                resolve.innerHTML = '<i data-lucide="check"></i>';
                 resolve.addEventListener('click', () => resolveKnowledgeGap(gap.id, gap.knowledgeBase));
                 li.appendChild(question);
                 li.appendChild(detail);
                 li.appendChild(resolve);
                 gapList.appendChild(li);
             });
+            refreshIcons();
         } catch (error) {
             console.error('Error loading knowledge gaps:', error);
             gapList.innerHTML = '';
@@ -646,13 +677,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return labels[action] || action || '未知操作';
     }
 
-    function getFileIcon(filename) {
+    function getFileIconElement(filename) {
         const lower = filename.toLowerCase();
-        if (lower.endsWith('.pdf')) return 'far fa-file-pdf file-pdf';
-        if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'far fa-file-word file-word';
-        if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return 'far fa-file-excel file-excel';
-        if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'far fa-file-powerpoint file-ppt';
-        return 'far fa-file-alt file-text';
+        const el = document.createElement('i');
+        el.setAttribute('data-lucide', 'file-text');
+        if (lower.endsWith('.pdf')) {
+            el.classList.add('file-pdf');
+        } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
+            el.classList.add('file-word');
+        } else if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) {
+            el.classList.add('file-excel');
+        } else if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) {
+            el.classList.add('file-ppt');
+        } else {
+            el.classList.add('file-text');
+        }
+        return el;
     }
 
     function statusClass(status) {
@@ -1219,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.innerHTML = `
                 <div class="source-card-header">
-                    <span class="source-card-icon ${getFileIcon(source.fileName || '').replace(/far fa-file-\S+/g, '').trim()}">${getFileTypeLabel(source.fileName || '')}</span>
+                    <span class="source-card-icon ${getFileColorClass(source.fileName || '')}">${getFileTypeLabel(source.fileName || '')}</span>
                     <span class="source-card-name" title="${escapeHtml(source.fileName || '')}">${escapeHtml(source.fileName || '未知文件')}</span>
                     <span class="source-card-score ${scoreClass}">${scorePercent}%</span>
                 </div>
@@ -1340,6 +1380,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return 'XLS';
         if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'PPT';
         return 'TXT';
+    }
+
+    function getFileColorClass(filename) {
+        const lower = filename.toLowerCase();
+        if (lower.endsWith('.pdf')) return 'file-pdf';
+        if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'file-word';
+        if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return 'file-excel';
+        if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'file-ppt';
+        return 'file-text';
     }
 
     function formatResponse(text) {
