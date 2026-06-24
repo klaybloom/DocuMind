@@ -1,9 +1,11 @@
 # DocuMind - 智能文档 RAG 助手
 
-DocuMind 是一款基于 Java Spring Boot 和 LangChain4j 构建的智能文档检索助手。它利用检索增强生成 (RAG) 技术，能够针对用户上传的文档提供精准的解读和问答，并在文档库未命中时自动切换至通用的 AI 知识库。
+[![Java](https://img.shields.io/badge/Java-17-blue.svg)](https://openjdk.org/projects/jdk/17/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.1-green.svg)](https://spring.io/projects/spring-boot)
+[![LangChain4j](https://img.shields.io/badge/LangChain4j-0.27.1-orange.svg)](https://github.com/langchain4j/langchain4j)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<!-- ![DocuMind UI](docs/screenshot.png) -->
-<!-- TODO: 补充实际截图 -->
+DocuMind 是一款基于 Java Spring Boot 和 LangChain4j 构建的智能文档检索助手。它利用检索增强生成 (RAG) 技术，能够针对用户上传的文档提供精准的解读和问答，并在文档库未命中时自动切换至通用的 AI 知识库。
 
 ## 🏗️ 系统架构
 
@@ -30,8 +32,8 @@ graph TD
 **组件说明**：
 - **前端**：原生 HTML5/JS/CSS 单页应用，通过 SSE 实现流式回答展示
 - **RagService**：混合检索（向量相似度 + 关键词匹配）、会话记忆、分块策略
-- **InMemoryEmbeddingStore**：进程内向量库，服务重启后从文件重建索引
-- **DocumentService**：文件系统存储 + `.documind-files.json` 清单管理
+- **InMemoryEmbeddingStore**：进程内向量库，定期序列化到 `.documind-vectors.json`
+- **DocumentService**：文件系统存储 + H2/JPA 元数据管理
 
 ## 🔄 RAG 工作流程
 
@@ -92,6 +94,8 @@ sequenceDiagram
 - **文档过期提示**：按上传时间标记可能过期文档，默认阈值为 180 天。
 - **负责人追踪**：上传文档时记录上传人和负责人，未命中时可提示联系负责人补充资料。
 - **FAQ 草稿**：管理员可根据知识缺口生成 Markdown FAQ 草稿。
+- **文件 Hash 去重**：基于 SHA-256 计算文件哈希，同知识库下相同内容的文件不允许重复上传。
+- **检索调试视图**：启用 Debug 模式后，展示所有候选片段的得分、匹配类型（向量/关键词/混合）、是否被采用，便于排查 RAG 召回质量。
 - **分流机制 (Hybrid AI)**：
   - **精准命中**：若文档中存在相关信息，AI 将基于本地知识进行深度解读。
   - **通用回退**：若文档未提及，AI 将明确说明未命中文档，再利用通用知识提供谨慎建议。
@@ -224,10 +228,10 @@ DocuMind/
 ## 知识库和索引
 
 - 默认知识库使用 `documents/` 根目录，新增知识库使用 `documents/<知识库名>/` 子目录。
-- 每个知识库目录会生成 `.documind-files.json`，记录文件大小、上传时间、索引状态、片段数和错误信息。
-- 当前知识库未命中的问题会写入 `.documind-gaps.json`，管理员可用于补充 FAQ 或制度文档。
+- 文档元数据、索引状态、知识缺口和审计记录保存在 H2 文件数据库中。
+- 旧版本的 `.documind-files.json`、`.documind-gaps.json` 和 `.documind-audit.log` 会在启动时迁移。
 - 文档过期提示按 `DOCUMIND_STALE_DAYS` 判断；默认 180 天。
-- 当前向量库仍是进程内内存实现；服务重启后会重新读取文件并重建索引。
+- 向量库运行时仍使用内存实现，同时会持久化到 `.documind-vectors.json`；服务重启后优先加载快照，并按文件变化增量刷新。
 - 运行过程中刷新索引会复用已成功索引且未变化文件的解析和嵌入结果，只处理新增或更新文件。
 - RAG 检索参数可通过 `DOCUMIND_RAG_MAX_RESULTS`、`DOCUMIND_RAG_MIN_SCORE`、`DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO`、`DOCUMIND_RAG_RETRIEVAL_POOL_SIZE`、`DOCUMIND_RAG_CHUNK_SIZE`、`DOCUMIND_RAG_CHUNK_OVERLAP` 调整。
 - 真实答案质量建议按 [RAG_EVALUATION.md](./docs/RAG_EVALUATION.md) 的问题集定期检查。
@@ -240,36 +244,63 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 mvn test
 ```
 
-当前测试覆盖：
+当前测试覆盖（69 个测试）：
 
-- `DocumentServiceTest`：知识库目录、manifest、负责人、索引状态、过期提示、知识缺口、FAQ 草稿和缺口处理。
-- `AuditServiceTest`：审计事件写入、最近记录排序、敏感字段过滤。
-- `HealthServiceTest`：运行状态、配置缺失、无文档、问答运行参数的 readiness 状态。
-- `KnowledgeBaseAccessServiceTest`：管理员和普通用户的知识库访问范围。
-- `SecurityConfigTest`：管理员账号、普通用户账号、角色和必填配置校验。
-- `WebConfigTest`：CORS 多来源配置解析。
-- `RagServiceTest`：无命中文档时的通用模型路径、流式失败处理、弱关键词过滤和来源数量配置。
+- `DocumentServiceTest`（12 个）：知识库目录、manifest、负责人、索引状态、过期提示、知识缺口、FAQ 草稿、缺口处理、**文件 Hash 去重**。
+- `RagServiceTest`（9 个）：无命中文档时的通用模型路径、流式失败处理、弱关键词过滤、来源数量配置、会话记忆边界、向量持久化。
+- `ChatControllerHttpTest`（9 个）：问答审计、未授权知识库拒绝、限流、验证错误、会话清理、审计字段过滤。
+- `FileControllerHttpTest`（8 个）：下载审计、文件不存在 404、无效输入 400、删除、列表错误、缺口错误、FAQ 错误。
+- `AuditServiceTest`（4 个）：审计事件写入、最近记录排序、敏感字段过滤。
+- `HealthServiceTest`（4 个）：运行状态、配置缺失、无文档、问答运行参数的 readiness 状态。
+- `KnowledgeBaseAccessServiceTest`（5 个）：管理员和普通用户的知识库访问范围。
+- `SecurityConfigTest`（6 个）：管理员账号、普通用户账号、角色和必填配置校验。
+- `RateLimitServiceTest`（3 个）：限流拒绝、独立账号、零限制禁用。
+- `ChatRequestTest`（3 个）：中文输入、无效字符、超长消息。
+- `LangChainConfigTest`（2 个）：超时值、最小超时。
+- `ChatExecutionConfigTest`（1 个）：线程池大小规范化。
+- `WebConfigTest`（1 个）：CORS 多来源配置解析。
 
 这些测试不调用真实 DeepSeek API，也不验证模型回答质量；回答质量仍需使用固定问题集人工评测。
 
 ## HTTP 接口
 
-- `POST /api/chat`：普通问答，支持 `message`、`sessionId`、`knowledgeBase`。
-- `POST /api/chat/stream`：流式问答，参数同上。
-- `DELETE /api/chat/sessions/{sessionId}`：清理服务端会话记忆，登录用户可访问。
-- `GET /api/health`：存活检查，无需登录，只返回整体状态和时间。
-- `GET /api/health/readiness`：部署 readiness 检查，管理员可访问，包含 DeepSeek 配置、文档目录、索引、知识库状态和问答运行参数。
-- `GET /api/files/knowledge-bases`：列出当前账号可访问的知识库，登录用户可访问。
-- `GET /api/files/list?knowledgeBase=HR`：列出文档和索引状态，管理员可访问。
-- `GET /api/files/status`：查看每个知识库的索引、过期、缺口统计，管理员可访问。
-- `GET /api/files/gaps?knowledgeBase=HR`：查看知识缺口，管理员可访问。
-- `GET /api/files/faq-draft?knowledgeBase=HR`：根据知识缺口生成 FAQ Markdown 草稿，管理员可访问。
-- `GET /api/files/audit?limit=100`：查看最近审计记录，管理员可访问。
-- `POST /api/files/upload`：上传文档，form-data 字段为 `file`、可选 `knowledgeBase` 和可选 `owner`，管理员可访问。
-- `POST /api/files/refresh`：重建索引，管理员可访问。
-- `GET /api/files/{filename}/download?knowledgeBase=HR`：下载原始文档，管理员可访问。
-- `DELETE /api/files/gaps/{gapId}?knowledgeBase=HR`：标记知识缺口为已处理，管理员可访问。
-- `DELETE /api/files/{filename}?knowledgeBase=HR`：删除文档，管理员可访问；文件不存在时返回 404。
+### 问答接口
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| `POST` | `/api/chat` | 普通问答 | 登录用户 |
+| `POST` | `/api/chat/stream` | 流式问答（SSE） | 登录用户 |
+| `DELETE` | `/api/chat/sessions/{sessionId}` | 清理会话记忆 | 登录用户 |
+
+**问答参数**：`message`（最长 5000 字符）、`sessionId`（最长 100 字符）、`knowledgeBase`（最长 60 字符）、`debug`（可选，启用检索调试信息）。
+
+### 文件管理接口
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| `POST` | `/api/files/upload` | 上传文档（form-data: `file`, `knowledgeBase`, `owner`） | 管理员 |
+| `DELETE` | `/api/files/{filename}?knowledgeBase=X` | 删除文档 | 管理员 |
+| `GET` | `/api/files/list?knowledgeBase=X` | 列出文档和索引状态 | 管理员 |
+| `GET` | `/api/files/{filename}/download?knowledgeBase=X` | 下载原始文档 | 管理员 |
+| `POST` | `/api/files/refresh` | 重建全量索引 | 管理员 |
+| `GET` | `/api/files/knowledge-bases` | 列出可访问的知识库 | 登录用户 |
+| `GET` | `/api/files/status` | 每个知识库的统计信息 | 管理员 |
+
+### 知识缺口与 FAQ 接口
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| `GET` | `/api/files/gaps?knowledgeBase=X` | 查看知识缺口 | 管理员 |
+| `DELETE` | `/api/files/gaps/{gapId}?knowledgeBase=X` | 标记缺口为已处理 | 管理员 |
+| `GET` | `/api/files/faq-draft?knowledgeBase=X` | 生成 FAQ Markdown 草稿 | 管理员 |
+| `GET` | `/api/files/audit?limit=100` | 查看审计记录 | 管理员 |
+
+### 健康检查接口
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| `GET` | `/api/health` | 存活检查 | 公开 |
+| `GET` | `/api/health/readiness` | Readiness 检查（含配置、索引状态） | 管理员 |
 
 审计记录写入 `documents/.documind-audit.log`，采用 JSONL 格式。当前记录问答、限流问答、清理会话记忆、上传、下载、删除、刷新索引、生成 FAQ 草稿、处理知识缺口等操作；问答审计只保存账号、知识库、会话 ID、问题长度和是否流式请求，不保存完整问题正文。默认保留最近 10000 条记录，可用 `DOCUMIND_AUDIT_MAX_EVENTS` 调整。
 
@@ -280,6 +311,44 @@ mvn test
 流式问答使用独立线程池，默认常驻线程 4、最大线程 8、队列 100，可通过 `DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE`、`DOCUMIND_CHAT_STREAM_MAX_POOL_SIZE`、`DOCUMIND_CHAT_STREAM_QUEUE_CAPACITY` 调整。
 
 超时配置：DeepSeek 调用默认 60 秒，可用 `DEEPSEEK_TIMEOUT_SECONDS` 调整；流式问答 SSE 连接默认 120 秒，可用 `DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS` 调整。
+
+## 环境变量参考
+
+### 必填变量
+
+| 变量名 | 说明 | 示例 |
+|--------|------|------|
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | `sk-xxx` |
+| `DOCUMIND_ADMIN_PASSWORD` | 管理员密码（≥12 字符） | `your_secure_password` |
+
+### 可选变量
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `DOCUMIND_ADMIN_USERNAME` | `admin` | 管理员用户名 |
+| `DOCUMIND_USER_USERNAME` | - | 普通用户名 |
+| `DOCUMIND_USER_PASSWORD` | - | 普通用户密码 |
+| `DOCUMIND_USER_KNOWLEDGE_BASES` | `default` | 普通用户可访问的知识库 |
+| `DOCUMIND_MIN_PASSWORD_LENGTH` | `12` | 最小密码长度 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek API 地址 |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 使用的模型 |
+| `DEEPSEEK_TIMEOUT_SECONDS` | `60` | API 调用超时（秒） |
+| `DOCUMIND_MAX_FILE_SIZE` | `50MB` | 单文件大小上限 |
+| `DOCUMIND_STALE_DAYS` | `180` | 文档过期天数阈值 |
+| `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
+| `DOCUMIND_DB_USERNAME` | `sa` | H2 数据库用户名 |
+| `DOCUMIND_DB_PASSWORD` | - | H2 数据库密码 |
+| `DOCUMIND_RAG_MAX_RESULTS` | `3` | 检索返回的最大片段数 |
+| `DOCUMIND_RAG_MIN_SCORE` | `0.65` | 向量检索最低相似度阈值 |
+| `DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO` | `0.25` | 关键词匹配最低命中率 |
+| `DOCUMIND_RAG_RETRIEVAL_POOL_SIZE` | `50` | 向量检索候选池大小 |
+| `DOCUMIND_RAG_CHUNK_SIZE` | `500` | 文档切分片段大小（token） |
+| `DOCUMIND_RAG_CHUNK_OVERLAP` | `50` | 相邻片段重叠大小（token） |
+| `DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE` | `30` | 每账号每分钟问答次数限制 |
+| `DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS` | `120` | SSE 连接超时（秒） |
+| `DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE` | `4` | 流式线程池核心线程数 |
+| `DOCUMIND_CHAT_STREAM_MAX_POOL_SIZE` | `8` | 流式线程池最大线程数 |
+| `DOCUMIND_AUDIT_MAX_EVENTS` | `10000` | 审计日志最大记录数 |
 
 ## 📝 许可证
 MIT License

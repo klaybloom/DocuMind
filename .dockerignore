@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output (will be rebuilt inside container)
+target
+
+# Maven wrapper (not used)
+.mvn
+
+# Documents data (persist via volume, not image)
+documents
+
+# Local config with secrets
+application-local.yml
+**/application-local.yml
+
+# Documentation
+docs
+*.md
+!README.md
+
+# Claude Code session data
+.claude

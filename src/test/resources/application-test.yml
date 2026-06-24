@@ -1,0 +1,21 @@
+# Test profile: H2 in-memory, dummy credentials
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+app:
+  documents-path: ${java.io.tmpdir}/documind-test
+  deepseek:
+    api-key: REDACTED_DEEPSEEK_API_KEY
+    base-url: https://api.deepseek.com
+    model: deepseek-v4-flash
+  security:
+    admin-username: admin
+    admin-password: test-admin-password-123
+    min-password-length: 8

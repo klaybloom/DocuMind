@@ -6,6 +6,15 @@ spring:
     multipart:
       max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
       max-request-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
+  datasource:
+    url: jdbc:h2:file:${DOCUMIND_DB_PATH:${user.dir}/documents/.documind-db};DB_CLOSE_DELAY=-1;AUTO_SERVER=FALSE
+    driver-class-name: org.h2.Driver
+    username: ${DOCUMIND_DB_USERNAME:sa}
+    password: ${DOCUMIND_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
 # Application Configuration
 app:
@@ -59,5 +68,5 @@ app:
 # Logging
 logging:
   level:
-    com.demo.ragchat: INFO
+    com.documind: INFO
     dev.langchain4j: WARN

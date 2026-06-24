@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocuMind | 智能文档助手</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
-    <link rel="stylesheet" href="style.css?v=7">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 
 <body>
@@ -36,7 +36,7 @@
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
         <button class="new-chat-btn" id="new-chat-btn">
-            <i class="fas fa-plus"></i>
+            <i data-lucide="plus"></i>
             开启新对话
         </button>
 
@@ -61,11 +61,11 @@
                 <button class="logout-btn" id="logout-btn" type="button" title="退出登录">⏻</button>
             </div>
             <button class="sidebar-action-btn" id="documents-btn" type="button">
-                <i class="fas fa-folder-open"></i>
+                <i data-lucide="folder-open"></i>
                 文档管理
             </button>
             <button class="sidebar-action-btn secondary" id="theme-toggle" type="button" aria-label="切换日间夜间模式">
-                <i class="fas fa-moon"></i>
+                <i data-lucide="moon"></i>
                 <span id="theme-label">夜间模式</span>
             </button>
         </div>
@@ -86,6 +86,17 @@
                     <button class="prompt-chip" type="button" data-prompt="根据已上传文档回答我的问题">根据文档问答</button>
                     <button class="prompt-chip" type="button" data-prompt="列出文档里可能需要进一步确认的内容">列出待确认内容</button>
                 </div>
+
+                <div class="hero-banner">
+                    <div class="hero-icon">🚀</div>
+                    <h2 class="hero-title">DocuMind AI 助手</h2>
+                    <p class="hero-desc">基于本地文档的智能检索问答助手，支持多种文档格式</p>
+                    <div class="hero-actions">
+                        <button class="hero-btn" type="button" data-prompt="总结当前文档的核心内容">📋 总结文档内容</button>
+                        <button class="hero-btn" type="button" data-prompt="提取文档中的关键信息和待办事项">🔍 提取关键信息</button>
+                        <button class="hero-btn" type="button" data-prompt="根据已上传文档回答我的问题">❓ 文档问答</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -95,11 +106,15 @@
                 <div class="knowledge-base-bar">
                     <label for="knowledge-base-select">知识库</label>
                     <select id="knowledge-base-select"></select>
+                    <label class="debug-toggle-label" title="启用后显示检索调试信息">
+                        <input type="checkbox" id="debug-toggle">
+                        <span>Debug</span>
+                    </label>
                 </div>
                 <div class="input-box">
                     <textarea id="user-input" placeholder="输入您想咨询的问题..." rows="1"></textarea>
                     <button id="send-btn" class="send-btn" disabled>
-                        <i class="fas fa-paper-plane"></i>
+                        <i data-lucide="send"></i>
                     </button>
                 </div>
                 <div style="text-align: center; font-size: 0.75rem; color: var(--text-secondary); margin-top: 15px;">
@@ -117,7 +132,7 @@
                     <p>上传、查看和删除知识库文档</p>
                 </div>
                 <button class="icon-btn" id="close-document-modal" type="button" aria-label="关闭文档管理">
-                    <i class="fas fa-times"></i>
+                    <i data-lucide="x"></i>
                 </button>
             </div>
 
@@ -132,7 +147,7 @@
                     <input id="document-owner-input" type="text" maxlength="80" placeholder="负责人，可留空">
                 </div>
                 <button class="upload-dropzone" id="upload-btn" type="button">
-                    <i class="fas fa-cloud-upload-alt"></i>
+                    <i data-lucide="upload-cloud"></i>
                     <span>上传文档</span>
                     <small>支持 PDF、Word、Excel、PPT、TXT，默认单个文件最大 50MB，可由部署配置调整</small>
                 </button>
@@ -147,15 +162,15 @@
                     <span>文档列表</span>
                     <div class="document-list-actions">
                         <button class="icon-text-btn" id="batch-toggle-btn" type="button" title="批量选择">
-                            <i class="fas fa-list-check"></i>
+                            <i data-lucide="list-check"></i>
                             批量
                         </button>
                         <button class="icon-text-btn" id="reindex-btn" type="button" title="重新构建索引">
-                            <i class="fas fa-rotate"></i>
+                            <i data-lucide="rotate-cw"></i>
                             重新索引
                         </button>
                         <button class="icon-text-btn" id="refresh-files-btn" type="button">
-                            <i class="fas fa-sync-alt"></i>
+                            <i data-lucide="refresh-cw"></i>
                             刷新
                         </button>
                     </div>
@@ -166,7 +181,7 @@
                         <span>全选</span>
                     </label>
                     <button class="batch-delete-btn" id="batch-delete-btn" type="button" disabled>
-                        <i class="fas fa-trash-alt"></i>
+                        <i data-lucide="trash-2"></i>
                         删除选中 (<span id="batch-count">0</span>)
                     </button>
                     <button class="batch-cancel-btn" id="batch-cancel-btn" type="button">取消</button>
@@ -177,7 +192,7 @@
                 <div class="document-list-header">
                     <span>知识缺口</span>
                     <button class="icon-text-btn" id="generate-faq-btn" type="button">
-                        <i class="fas fa-file-lines"></i>
+                        <i data-lucide="file-text"></i>
                         生成 FAQ 草稿
                     </button>
                 </div>
@@ -195,7 +210,8 @@
     </div>
     </div><!-- /app-root -->
 
-    <script src="app.js?v=7"></script>
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+    <script src="app.js?v=8"></script>
 </body>
 
 </html>

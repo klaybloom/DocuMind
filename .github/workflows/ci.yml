@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (JDK ${{ matrix.java-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: [17]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: temurin
+          cache: maven
+
+      - name: Run tests
+        run: mvn test -B
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-jdk${{ matrix.java-version }}
+          path: target/surefire-reports/
+          retention-days: 7
+
+  build:
+    name: Build JAR
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Build package
+        run: mvn package -DskipTests -B
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documind-jar
+          path: target/documind-*.jar
+          retention-days: 30
+
+  docker:
+    name: Build Docker image
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: documind:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
