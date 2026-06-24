@@ -245,6 +245,55 @@ class RagServiceTest {
     }
 
     @Test
+    void refreshIndexRebuildsWhenPersistedCacheHasNoSegments() throws Exception {
+        TestDocumentService documentService = new TestDocumentService(tempDir);
+        documentService.addIndexedFile("HR", "a.txt", "员工手册要求九点到岗。");
+        writeFingerprintOnlyCache(documentService.files);
+        new InMemoryEmbeddingStore<TextSegment>().serializeToFile(tempDir.resolve(".documind-vectors.json"));
+
+        RagService restored = service(
+                new RecordingChatModel("基于文档回答。"),
+                noOpStreamingModel(),
+                documentService,
+                new InMemoryEmbeddingStore<>()
+        );
+        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
+        boolean loaded = (boolean) ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
+
+        assertThat(loaded).isTrue();
+        restored.refreshIndex();
+
+        assertThat(restored.indexedSegmentCount()).isEqualTo(1);
+        assertThat(documentService.files.get(0).getIndexStatus()).isEqualTo(DocumentService.STATUS_INDEXED);
+        assertThat(documentService.files.get(0).getChunkCount()).isEqualTo(1);
+    }
+
+    @Test
+    void removeDocumentAfterRestartKeepsOtherRebuiltSegments() throws Exception {
+        TestDocumentService documentService = new TestDocumentService(tempDir);
+        documentService.addIndexedFile("HR", "a.txt", "A 文档包含考勤制度。");
+        documentService.addIndexedFile("HR", "b.txt", "B 文档包含报销制度。");
+        writeFingerprintOnlyCache(documentService.files);
+        new InMemoryEmbeddingStore<TextSegment>().serializeToFile(tempDir.resolve(".documind-vectors.json"));
+
+        RagService restored = service(
+                new RecordingChatModel("基于文档回答。"),
+                noOpStreamingModel(),
+                documentService,
+                new InMemoryEmbeddingStore<>()
+        );
+        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
+        ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
+        restored.refreshIndex();
+
+        assertThat(restored.indexedSegmentCount()).isEqualTo(2);
+
+        restored.removeDocument("a.txt", "HR");
+
+        assertThat(restored.indexedSegmentCount()).isEqualTo(1);
+    }
+
+    @Test
     void sessionMemoryIsBoundedByMaxSize() {
         RecordingChatModel chatModel = new RecordingChatModel("回答。");
         TestDocumentService documentService = new TestDocumentService();
@@ -351,6 +400,27 @@ class RagServiceTest {
         }
     }
 
+    private void writeFingerprintOnlyCache(List<DocumentFileInfo> files) throws Exception {
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < files.size(); i++) {
+            DocumentFileInfo file = files.get(i);
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('"')
+                    .append(file.getKnowledgeBase())
+                    .append('/')
+                    .append(file.getFileName())
+                    .append("\":{\"fingerprint\":\"")
+                    .append(file.getSizeBytes())
+                    .append(':')
+                    .append(file.getUploadedAt())
+                    .append("\"}");
+        }
+        json.append('}');
+        Files.writeString(tempDir.resolve(".documind-index-cache.json"), json.toString());
+    }
+
     private static class FixedEmbeddingModel implements EmbeddingModel {
         @Override
         public Response<List<Embedding>> embedAll(List<TextSegment> textSegments) {
@@ -363,6 +433,36 @@ class RagServiceTest {
 
     private static class TestDocumentService extends DocumentService {
         private final List<String> recordedQuestions = new ArrayList<>();
+        private final List<DocumentFileInfo> files = new ArrayList<>();
+        private final Path root;
+
+        private TestDocumentService() {
+            this.root = null;
+        }
+
+        private TestDocumentService(Path root) {
+            this.root = root;
+        }
+
+        private void addIndexedFile(String knowledgeBase, String fileName, String content) throws Exception {
+            Path path = root.resolve(knowledgeBase).resolve(fileName);
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, content);
+            files.add(new DocumentFileInfo(
+                    knowledgeBase,
+                    fileName,
+                    Files.size(path),
+                    "text/plain",
+                    null,
+                    "admin",
+                    "2026-06-24T00:00:00Z",
+                    "2026-06-24T00:00:00Z",
+                    STATUS_INDEXED,
+                    1,
+                    null,
+                    null
+            ));
+        }
 
         @Override
         public String normalizeKnowledgeBase(String knowledgeBase) {
@@ -371,12 +471,36 @@ class RagServiceTest {
 
         @Override
         public synchronized List<DocumentFileInfo> listDocumentFiles() {
-            return Collections.emptyList();
+            return List.copyOf(files);
         }
 
         @Override
         public synchronized List<DocumentFileInfo> listDocumentFiles(String knowledgeBase) {
-            return Collections.emptyList();
+            return files.stream()
+                    .filter(file -> normalizeKnowledgeBase(knowledgeBase).equals(file.getKnowledgeBase()))
+                    .toList();
+        }
+
+        @Override
+        public Path resolveDocumentPath(DocumentFileInfo fileInfo) {
+            return root.resolve(fileInfo.getKnowledgeBase()).resolve(fileInfo.getFileName());
+        }
+
+        @Override
+        public synchronized void markIndexing(DocumentFileInfo fileInfo) {
+            fileInfo.setIndexStatus(STATUS_INDEXING);
+        }
+
+        @Override
+        public synchronized void markIndexed(DocumentFileInfo fileInfo, int chunkCount) {
+            fileInfo.setIndexStatus(STATUS_INDEXED);
+            fileInfo.setChunkCount(chunkCount);
+        }
+
+        @Override
+        public synchronized void markIndexFailed(DocumentFileInfo fileInfo, String error) {
+            fileInfo.setIndexStatus(STATUS_FAILED);
+            fileInfo.setError(error);
         }
 
         @Override

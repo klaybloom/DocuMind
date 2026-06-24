@@ -146,10 +146,8 @@ public class RagService {
     public synchronized void refreshIndex() {
         try {
             logger.info("Starting index refresh");
-            // Only create a fresh store if there isn't one already (e.g. loaded from disk)
-            if (!storeLoadedFromDisk) {
-                this.embeddingStore = new InMemoryEmbeddingStore<>();
-            }
+            this.embeddingStore = new InMemoryEmbeddingStore<>();
+            this.storeLoadedFromDisk = false;
             List<TextSegment> refreshedSegments = new ArrayList<>();
             Map<String, IndexedDocument> refreshedCache = new LinkedHashMap<>();
             Map<String, IndexedDocument> previousCache = indexedDocumentCache;
@@ -163,7 +161,7 @@ public class RagService {
                 String fingerprint = fingerprint(fileInfo);
                 IndexedDocument cachedDocument = previousCache.get(documentKey);
 
-                if (cachedDocument != null
+                if (hasReusableIndex(cachedDocument)
                         && cachedDocument.fingerprint().equals(fingerprint)
                         && DocumentService.STATUS_INDEXED.equals(fileInfo.getIndexStatus())) {
                     embeddingStore.addAll(cachedDocument.embeddings(), cachedDocument.segments());
@@ -879,6 +877,14 @@ public class RagService {
             this.storeLoadedFromDisk = false;
             return false;
         }
+    }
+
+    private boolean hasReusableIndex(IndexedDocument document) {
+        return document != null
+                && document.segments() != null
+                && document.embeddings() != null
+                && !document.segments().isEmpty()
+                && document.segments().size() == document.embeddings().size();
     }
 
     @SuppressWarnings("unchecked")

@@ -66,26 +66,15 @@ public class JsonMigrationService {
                 return;
             }
 
-            // Migrate document files manifest (root + subdirectories)
             migratedFiles += migrateManifest(root);
-            Files.list(root)
-                    .filter(Files::isDirectory)
-                    .filter(p -> !p.getFileName().toString().startsWith("."))
-                    .forEach(dir -> {
-                        try {
-                            // Scan subdirectories for their own manifests via migrateManifest
-                            // but we need to track the count
-                        } catch (Exception e) {
-                            logger.warn("Failed to scan directory: {}", dir, e);
-                        }
-                    });
+            for (Path dir : knowledgeBaseDirectories(root)) {
+                migratedFiles += migrateManifest(dir);
+            }
 
-            // Migrate knowledge gaps
             migratedGaps += migrateGaps(root);
-            Files.list(root)
-                    .filter(Files::isDirectory)
-                    .filter(p -> !p.getFileName().toString().startsWith("."))
-                    .forEach(dir -> migrateGaps(dir));
+            for (Path dir : knowledgeBaseDirectories(root)) {
+                migratedGaps += migrateGaps(dir);
+            }
 
             // Migrate audit log (single global file)
             migratedEvents += migrateAudit(root);
@@ -135,6 +124,15 @@ public class JsonMigrationService {
         } catch (IOException e) {
             logger.warn("Failed to read manifest {}: {}", manifestPath, e.getMessage());
             return 0;
+        }
+    }
+
+    private List<Path> knowledgeBaseDirectories(Path root) throws IOException {
+        try (var stream = Files.list(root)) {
+            return stream
+                    .filter(Files::isDirectory)
+                    .filter(p -> !p.getFileName().toString().startsWith("."))
+                    .collect(Collectors.toList());
         }
     }
 
