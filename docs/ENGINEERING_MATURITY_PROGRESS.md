@@ -2,35 +2,38 @@
 
 **分支**: `feat/engineering-maturity-and-evaluation`
 **开始时间**: 2026-06-24
+**Phase 1-2 完成时间**: 2026-06-24
 
 ## 优化计划
 
 详见: `~/.claude/plans/glimmering-crunching-coral.md`
 
-## Phase 1：最高优先级（1-2 天）
+## Phase 1：最高优先级 ✅ 全部完成
 
-| # | 任务 | 阶段 | 状态 | 变更文件 | 说明 |
-|---|------|------|------|----------|------|
-| 1 | 文件 Hash 去重 | Phase 1 | ✅ 完成 | `DocumentFileInfo.java`, `DocumentService.java`, `DocumentServiceTest.java` | SHA-256 去重，同 KB 下相同内容拒绝上传 |
-| 2 | 文档状态前端增强 | Phase 1 | ✅ 完成 | `app.js`, `style.css` | 展示 lastIndexedAt 时间 |
-| 3 | 检索结果可视化 | Phase 1 | ✅ 完成 | `RetrievalDebugInfo.java`, `RagService.java`, `RagAnswer.java`, `ChatController.java`, `app.js`, `index.html`, `style.css`, `ChatControllerHttpTest.java`, `RagServiceTest.java` | Debug 视图展示所有候选片段 |
-| 4 | README 增强 | Phase 1 | ✅ 完成 | `README.md` | API 表格、环境变量表、徽章、测试覆盖更新 |
+| # | 任务 | 阶段 | 状态 | 说明 |
+|---|------|------|------|------|
+| 1 | 文件 Hash 去重 | Phase 1 | ✅ 完成 | SHA-256 去重，同 KB 下相同内容拒绝上传 |
+| 2 | 文档状态前端增强 | Phase 1 | ✅ 完成 | 展示 lastIndexedAt 时间 |
+| 3 | 检索结果可视化 | Phase 1 | ✅ 完成 | Debug 视图展示所有候选片段 |
+| 4 | README 增强 | Phase 1 | ✅ 完成 | API 表格、环境变量表、徽章 |
 
-## Phase 2：第二优先级（3-5 天）
+## Phase 2：第二优先级 ✅ 全部完成
 
-| # | 任务 | 阶段 | 状态 | 变更文件 | 说明 |
-|---|------|------|------|----------|------|
-| 5 | 单文档重新索引 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `app.js`, `style.css`, `FileControllerHttpTest.java` | POST /api/files/{filename}/reindex |
-| 6 | 删除文档同步清理向量 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `FileControllerHttpTest.java` | 精准移除 chunk，替代全量 refreshIndex |
-| 7 | Prompt 模板外置 | Phase 2 | ✅ 完成 | `PromptTemplateService.java`, `prompts/*.md`, `RagService.java`, `RagServiceTest.java`, `HealthServiceTest.java`, `ChatControllerHttpTest.java`, `FileControllerHttpTest.java` | 可配置的提示词模板 |
-| 8 | 问答测试集 | Phase 2 | ✅ 完成 | `docs/test-set.json`, `docs/RAG_EVALUATION.md` | 30 题结构化评测集 |
+| # | 任务 | 阶段 | 状态 | 说明 |
+|---|------|------|------|------|
+| 5 | 单文档重新索引 | Phase 2 | ✅ 完成 | POST /api/files/{filename}/reindex |
+| 6 | 删除文档同步清理向量 | Phase 2 | ✅ 完成 | 精准移除 chunk，替代全量 refreshIndex |
+| 7 | Prompt 模板外置 | Phase 2 | ✅ 完成 | 可配置的提示词模板 |
+| 8 | 问答测试集 | Phase 2 | ✅ 完成 | 30 题结构化评测集 |
 
 ## Phase 3：后续增强（暂不实施）
 
-- 异步文档处理
-- Embedding 模型对比
-- 混合检索参数调优
-- 完整评测表格
+| 项目 | 说明 |
+|------|------|
+| 异步文档处理 | DocumentIndexingService + 线程池 + 前端轮询状态 |
+| Embedding 模型对比 | 同一测试集跑不同模型，对比召回准确率 |
+| 混合检索参数调优 | min-score / max-results / keywordMinHitRatio A/B 测试 |
+| 完整评测表格 | 多组参数对比结果文档化 |
 
 ## 变更日志
 
