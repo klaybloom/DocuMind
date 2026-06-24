@@ -488,6 +488,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 download.innerHTML = '<i class="fas fa-download"></i>';
                 download.addEventListener('click', () => downloadFile(file.fileName, file.knowledgeBase));
 
+                const reindex = document.createElement('button');
+                reindex.className = 'reindex-file-btn';
+                reindex.type = 'button';
+                reindex.setAttribute('aria-label', `重新索引 ${file.fileName}`);
+                reindex.innerHTML = '<i class="fas fa-sync-alt"></i>';
+                reindex.addEventListener('click', () => reindexFile(file.fileName, file.knowledgeBase));
+
                 const del = document.createElement('button');
                 del.className = 'delete-file-btn';
                 del.type = 'button';
@@ -498,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.appendChild(icon);
                 li.appendChild(meta);
                 li.appendChild(download);
+                li.appendChild(reindex);
                 li.appendChild(del);
                 fileList.appendChild(li);
             });
@@ -732,6 +740,29 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error deleting file:', error);
             setUploadStatus('删除失败', 'error');
+        }
+    }
+
+    async function reindexFile(filename, knowledgeBase) {
+        try {
+            setUploadStatus(`正在重新索引 ${filename}…`);
+            const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
+            const response = await authFetch(`/api/files/${encodeURIComponent(filename)}/reindex?${params}`, { method: 'POST' });
+            if (response.status === 401 || response.status === 403) {
+                setUploadStatus('当前账号没有重新索引权限', 'error');
+                return;
+            }
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || 'Reindex failed');
+            }
+            setUploadStatus(`已重新索引 ${filename}`, 'success');
+            loadFileList();
+            loadKnowledgeBaseStatus();
+            loadAuditEvents();
+        } catch (error) {
+            console.error('Error reindexing file:', error);
+            setUploadStatus(`重新索引失败: ${error.message}`, 'error');
         }
     }
 

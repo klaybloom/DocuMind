@@ -20,8 +20,8 @@
 
 | # | 任务 | 阶段 | 状态 | 变更文件 | 说明 |
 |---|------|------|------|----------|------|
-| 5 | 单文档重新索引 | Phase 2 | ⏳ 待开始 | `RagService.java`, `FileController.java`, `AuditService.java`, `app.js` | POST /api/files/{filename}/reindex |
-| 6 | 删除文档同步清理向量 | Phase 2 | ⏳ 待开始 | `RagService.java`, `FileController.java` | 精准移除 chunk，替代全量 refreshIndex |
+| 5 | 单文档重新索引 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `app.js`, `style.css`, `FileControllerHttpTest.java` | POST /api/files/{filename}/reindex |
+| 6 | 删除文档同步清理向量 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `FileControllerHttpTest.java` | 精准移除 chunk，替代全量 refreshIndex |
 | 7 | Prompt 模板外置 | Phase 2 | ⏳ 待开始 | `PromptTemplateService.java`, `prompts/*.md`, `RagService.java`, `application.yml` | 可配置的提示词模板 |
 | 8 | 问答测试集 | Phase 2 | ⏳ 待开始 | `docs/test-set.json`, `RagEvaluationRunner.java`, `RAG_EVALUATION.md` | 30 题结构化评测集 |
 
@@ -68,3 +68,15 @@
 - **当前测试数**: 69
 - **通过**: 69
 - **失败**: 0
+
+### Phase 2.1-2.2 完成
+- 单文档重新索引（Phase 2.1）
+  - `RagService.java`: 新增 `reindexDocument()`、`removeDocument()`、`rebuildStoreFromSegments()` 方法
+  - `FileController.java`: 新增 `POST /{filename}/reindex` 端点，删除文档改用 `removeDocument()`
+  - `app.js`: 新增 `reindexFile()` 函数，文件列表增加重新索引按钮
+  - `style.css`: 新增 `.reindex-file-btn` 样式
+  - `FileControllerHttpTest.java`: 更新 FakeRagService 追踪 removeCalls
+- 删除文档同步清理向量（Phase 2.2）
+  - `RagService.removeDocument()`: 过滤指定文件的 chunk，重建 store
+  - `FileController`: 删除后调用 `removeDocument()` 替代 `refreshIndex()`
+- **全部 69 个测试通过**

@@ -409,6 +409,7 @@ button {
 
 .delete-history-btn,
 .download-file-btn,
+.reindex-file-btn,
 .delete-file-btn {
     width: 28px;
     height: 28px;
