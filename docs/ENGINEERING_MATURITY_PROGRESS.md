@@ -14,7 +14,7 @@
 | 1 | 文件 Hash 去重 | Phase 1 | ✅ 完成 | `DocumentFileInfo.java`, `DocumentService.java`, `DocumentServiceTest.java` | SHA-256 去重，同 KB 下相同内容拒绝上传 |
 | 2 | 文档状态前端增强 | Phase 1 | ✅ 完成 | `app.js`, `style.css` | 展示 lastIndexedAt 时间 |
 | 3 | 检索结果可视化 | Phase 1 | ✅ 完成 | `RetrievalDebugInfo.java`, `RagService.java`, `RagAnswer.java`, `ChatController.java`, `app.js`, `index.html`, `style.css`, `ChatControllerHttpTest.java`, `RagServiceTest.java` | Debug 视图展示所有候选片段 |
-| 4 | README 增强 | Phase 1 | ⏳ 待开始 | `README.md` | API 表格、环境变量表、架构图优化 |
+| 4 | README 增强 | Phase 1 | ✅ 完成 | `README.md` | API 表格、环境变量表、徽章、测试覆盖更新 |
 
 ## Phase 2：第二优先级（3-5 天）
 
@@ -54,6 +54,14 @@
   - `RagServiceTest.java`: 修复 `sessionMemories` 初始化，添加 `cleanUp()` 调用
   - `ChatControllerHttpTest.java`: 更新 FakeRagService 方法签名
 - **全部 69 个测试通过**
+
+### Phase 1.4 完成
+- README 增强
+  - 添加 Java/Spring Boot/LangChain4j/License 徽章
+  - API 接口改为分类表格（问答、文件管理、知识缺口、健康检查）
+  - 新增环境变量参考表（必填 2 项 + 可选 19 项）
+  - 更新测试覆盖说明（69 个测试，13 个测试类）
+  - 新增功能说明（文件 Hash 去重、检索调试视图）
 
 ## 测试状态
 
