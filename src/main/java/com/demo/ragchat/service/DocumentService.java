@@ -16,9 +16,12 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -104,6 +107,21 @@ public class DocumentService {
         String normalizedUploadedBy = normalizeMetadataField(uploadedBy, "上传人", MAX_UPLOADED_BY_LENGTH);
         try {
             init();
+
+            // Compute file hash for deduplication
+            String fileHash;
+            try (InputStream hashStream = file.getInputStream()) {
+                fileHash = computeFileHash(hashStream);
+            }
+
+            // Check for duplicate file in same knowledge base
+            Map<String, DocumentFileInfo> existingManifest = readManifest(kb);
+            for (DocumentFileInfo existing : existingManifest.values()) {
+                if (fileHash.equals(existing.getFileHash())) {
+                    throw new InvalidFileException("该知识库中已存在相同内容的文件: " + existing.getFileName());
+                }
+            }
+
             Path targetDirectory = knowledgeBasePath(kb);
             Files.createDirectories(targetDirectory);
             Path targetLocation = targetDirectory.resolve(sanitizedFilename);
@@ -124,7 +142,8 @@ public class DocumentService {
                     null,
                     STATUS_PENDING,
                     0,
-                    null
+                    null,
+                    fileHash
             ));
             logger.info("File stored successfully: {}/{}", kb, sanitizedFilename);
             return sanitizedFilename;
@@ -496,6 +515,7 @@ public class DocumentService {
                     null,
                     STATUS_PENDING,
                     0,
+                    null,
                     null
             );
         } catch (IOException e) {
@@ -510,6 +530,7 @@ public class DocumentService {
                     null,
                     STATUS_PENDING,
                     0,
+                    null,
                     null
             );
         }
@@ -676,5 +697,30 @@ public class DocumentService {
             return (bytes / megabyte) + "MB";
         }
         return bytes + " 字节";
+    }
+
+    /**
+     * Compute SHA-256 hash of input stream content.
+     */
+    String computeFileHash(InputStream inputStream) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                digest.update(buffer, 0, bytesRead);
+            }
+            byte[] hashBytes = digest.digest();
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is guaranteed to be available in all JVMs
+            throw new RuntimeException("SHA-256 not available", e);
+        } catch (IOException e) {
+            throw new FileStorageException("无法计算文件哈希", e);
+        }
     }
 }

@@ -317,7 +317,7 @@ class ChatControllerHttpTest {
         }
 
         @Override
-        public RagAnswer ask(String question, String sessionId, String knowledgeBase) {
+        public RagAnswer ask(String question, String sessionId, String knowledgeBase, boolean debug) {
             askCalls++;
             this.question = question;
             this.sessionId = sessionId;
@@ -331,8 +331,10 @@ class ChatControllerHttpTest {
                               String knowledgeBase,
                               java.util.function.Consumer<String> onNext,
                               java.util.function.Consumer<List<com.demo.ragchat.dto.SourceReference>> onSources,
+                              java.util.function.Consumer<com.demo.ragchat.dto.RetrievalDebugInfo> onDebug,
                               Runnable onComplete,
-                              java.util.function.Consumer<Throwable> onError) {
+                              java.util.function.Consumer<Throwable> onError,
+                              boolean debug) {
             streamCalls++;
             onNext.accept("测试回答");
             onSources.accept(List.of(

@@ -200,6 +200,7 @@ class DocumentServiceTest {
                 null,
                 DocumentService.STATUS_PENDING,
                 0,
+                null,
                 null
         );
         new ObjectMapper().writerWithDefaultPrettyPrinter()
@@ -233,5 +234,54 @@ class DocumentServiceTest {
         assertThat(removed.getQuestion()).isEqualTo("合同模板在哪里申请？");
         assertThat(documentService.listKnowledgeGaps("Legal")).isEmpty();
         assertThat(documentService.resolveKnowledgeGap("Legal", "missing")).isNull();
+    }
+
+    @Test
+    void storeFileRejectsDuplicateHashInSameKnowledgeBase() {
+        byte[] content = "相同内容的文件".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file1 = new MockMultipartFile(
+                "file", "doc1.txt", "text/plain", content
+        );
+        MockMultipartFile file2 = new MockMultipartFile(
+                "file", "doc2.txt", "text/plain", content
+        );
+
+        documentService.storeFile(file1, "HR", "Alice", "admin");
+
+        assertThatThrownBy(() -> documentService.storeFile(file2, "HR", "Alice", "admin"))
+                .isInstanceOf(InvalidFileException.class)
+                .hasMessageContaining("该知识库中已存在相同内容的文件")
+                .hasMessageContaining("doc1.txt");
+    }
+
+    @Test
+    void storeFileAllowsSameHashInDifferentKnowledgeBase() {
+        byte[] content = "相同内容的文件".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file1 = new MockMultipartFile(
+                "file", "doc.txt", "text/plain", content
+        );
+        MockMultipartFile file2 = new MockMultipartFile(
+                "file", "doc.txt", "text/plain", content
+        );
+
+        documentService.storeFile(file1, "HR", "Alice", "admin");
+        documentService.storeFile(file2, "Finance", "Bob", "admin");
+
+        assertThat(documentService.listDocumentFiles("HR")).hasSize(1);
+        assertThat(documentService.listDocumentFiles("Finance")).hasSize(1);
+    }
+
+    @Test
+    void storeFileRecordsHashInManifest() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "policy.txt", "text/plain",
+                "报销流程".getBytes(StandardCharsets.UTF_8)
+        );
+
+        documentService.storeFile(file, "HR", "Alice", "admin");
+
+        DocumentFileInfo info = documentService.listDocumentFiles("HR").get(0);
+        assertThat(info.getFileHash()).isNotBlank();
+        assertThat(info.getFileHash()).hasSize(64); // SHA-256 hex is 64 chars
     }
 }

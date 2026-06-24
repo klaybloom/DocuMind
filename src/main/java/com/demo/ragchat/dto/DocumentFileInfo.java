@@ -13,6 +13,7 @@ public class DocumentFileInfo {
     private String indexStatus;
     private int chunkCount;
     private String error;
+    private String fileHash;
     private boolean stale;
     private long daysSinceUpload;
 
@@ -29,7 +30,8 @@ public class DocumentFileInfo {
                             String lastIndexedAt,
                             String indexStatus,
                             int chunkCount,
-                            String error) {
+                            String error,
+                            String fileHash) {
         this.knowledgeBase = knowledgeBase;
         this.fileName = fileName;
         this.sizeBytes = sizeBytes;
@@ -41,6 +43,7 @@ public class DocumentFileInfo {
         this.indexStatus = indexStatus;
         this.chunkCount = chunkCount;
         this.error = error;
+        this.fileHash = fileHash;
     }
 
     public String getKnowledgeBase() {
@@ -129,6 +132,14 @@ public class DocumentFileInfo {
 
     public void setError(String error) {
         this.error = error;
+    }
+
+    public String getFileHash() {
+        return fileHash;
+    }
+
+    public void setFileHash(String fileHash) {
+        this.fileHash = fileHash;
     }
 
     public boolean isStale() {

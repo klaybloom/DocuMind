@@ -86,6 +86,17 @@
                     <button class="prompt-chip" type="button" data-prompt="根据已上传文档回答我的问题">根据文档问答</button>
                     <button class="prompt-chip" type="button" data-prompt="列出文档里可能需要进一步确认的内容">列出待确认内容</button>
                 </div>
+
+                <div class="hero-banner">
+                    <div class="hero-icon">🚀</div>
+                    <h2 class="hero-title">DocuMind AI 助手</h2>
+                    <p class="hero-desc">基于本地文档的智能检索问答助手，支持多种文档格式</p>
+                    <div class="hero-actions">
+                        <button class="hero-btn" type="button" data-prompt="总结当前文档的核心内容">📋 总结文档内容</button>
+                        <button class="hero-btn" type="button" data-prompt="提取文档中的关键信息和待办事项">🔍 提取关键信息</button>
+                        <button class="hero-btn" type="button" data-prompt="根据已上传文档回答我的问题">❓ 文档问答</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -95,6 +106,10 @@
                 <div class="knowledge-base-bar">
                     <label for="knowledge-base-select">知识库</label>
                     <select id="knowledge-base-select"></select>
+                    <label class="debug-toggle-label" title="启用后显示检索调试信息">
+                        <input type="checkbox" id="debug-toggle">
+                        <span>Debug</span>
+                    </label>
                 </div>
                 <div class="input-box">
                     <textarea id="user-input" placeholder="输入您想咨询的问题..." rows="1"></textarea>

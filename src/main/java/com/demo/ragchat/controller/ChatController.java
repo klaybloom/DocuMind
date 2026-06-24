@@ -3,6 +3,7 @@ package com.demo.ragchat.controller;
 import com.demo.ragchat.dto.ChatRequest;
 import com.demo.ragchat.dto.ChatResponse;
 import com.demo.ragchat.dto.RagAnswer;
+import com.demo.ragchat.dto.RetrievalDebugInfo;
 import com.demo.ragchat.dto.SourceReference;
 import com.demo.ragchat.service.AuditService;
 import com.demo.ragchat.service.KnowledgeBaseAccessService;
@@ -64,6 +65,7 @@ public class ChatController {
 
     @PostMapping
     public ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request,
+                                             @RequestParam(value = "debug", required = false, defaultValue = "false") boolean debug,
                                              Principal principal,
                                              Authentication authentication) {
         try {
@@ -90,7 +92,8 @@ public class ChatController {
             RagAnswer answer = ragService.ask(
                     request.getMessage(),
                     scopedSessionId(principal, request.getSessionId()),
-                    request.getKnowledgeBase()
+                    request.getKnowledgeBase(),
+                    debug
             );
             return ResponseEntity.ok(ChatResponse.success(answer));
         } catch (Exception e) {
@@ -102,6 +105,7 @@ public class ChatController {
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(@Valid @RequestBody ChatRequest request,
+                                 @RequestParam(value = "debug", required = false, defaultValue = "false") boolean debug,
                                  Principal principal,
                                  Authentication authentication) {
         SseEmitter emitter = new SseEmitter(streamTimeoutMillis());
@@ -132,6 +136,7 @@ public class ChatController {
                     request.getKnowledgeBase(),
                     token -> sendEmitterEvent(emitter, "token", token),
                     sources -> sendSourcesEvent(emitter, sources),
+                    debugInfo -> sendDebugEvent(emitter, debugInfo),
                     () -> {
                         sendEmitterEvent(emitter, "done", "");
                         emitter.complete();
@@ -140,7 +145,8 @@ public class ChatController {
                         logger.error("Error processing streaming chat request", error);
                         sendEmitterEvent(emitter, "error", "处理请求时发生错误，请稍后重试");
                         emitter.complete();
-                    }
+                    },
+                    debug
             ), chatStreamExecutor);
         } catch (RejectedExecutionException e) {
             logger.warn("Streaming chat executor rejected request", e);
@@ -191,6 +197,15 @@ public class ChatController {
             sendEmitterEvent(emitter, "sources", json);
         } catch (IOException e) {
             logger.warn("Failed to serialize sources for SSE event", e);
+        }
+    }
+
+    private void sendDebugEvent(SseEmitter emitter, RetrievalDebugInfo debugInfo) {
+        try {
+            String json = objectMapper.writeValueAsString(debugInfo);
+            sendEmitterEvent(emitter, "debug", json);
+        } catch (IOException e) {
+            logger.warn("Failed to serialize debug info for SSE event", e);
         }
     }
 

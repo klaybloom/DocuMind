@@ -8,6 +8,7 @@ public class RagAnswer {
     private String answer;
     private List<SourceReference> sources;
     private boolean fromDocuments;
+    private RetrievalDebugInfo debugInfo;
 
     public RagAnswer() {
     }
@@ -40,5 +41,13 @@ public class RagAnswer {
 
     public void setFromDocuments(boolean fromDocuments) {
         this.fromDocuments = fromDocuments;
+    }
+
+    public RetrievalDebugInfo getDebugInfo() {
+        return debugInfo;
+    }
+
+    public void setDebugInfo(RetrievalDebugInfo debugInfo) {
+        this.debugInfo = debugInfo;
     }
 }

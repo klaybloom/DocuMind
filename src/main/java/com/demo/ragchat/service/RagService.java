@@ -2,7 +2,12 @@ package com.demo.ragchat.service;
 
 import com.demo.ragchat.dto.RagAnswer;
 import com.demo.ragchat.dto.DocumentFileInfo;
+import com.demo.ragchat.dto.RetrievalDebugInfo;
 import com.demo.ragchat.dto.SourceReference;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.Metadata;
@@ -32,7 +37,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
@@ -43,12 +50,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 @Service
 public class RagService {
 
     private static final Logger logger = LoggerFactory.getLogger(RagService.class);
+    private static final ObjectMapper CACHE_MAPPER = new ObjectMapper();
     private static final int DEFAULT_MAX_RESULTS = 3;
     private static final double DEFAULT_MIN_SCORE = 0.65;
     private static final double DEFAULT_MIN_KEYWORD_HIT_RATIO = 0.25;
@@ -58,11 +67,18 @@ public class RagService {
     private static final String CHUNK_ID = "chunk_id";
     private static final String KNOWLEDGE_BASE = "knowledge_base";
     private static final String PAGE = "page";
+    private static final String STORE_FILE = ".documind-vectors.json";
+    private static final String CACHE_FILE = ".documind-index-cache.json";
+    private static final int DEFAULT_MAX_SESSIONS = 1000;
+    private static final long DEFAULT_SESSION_TTL_MINUTES = 60;
 
     private final ChatLanguageModel chatLanguageModel;
     private final StreamingChatLanguageModel streamingChatLanguageModel;
     private final EmbeddingModel embeddingModel;
     private final DocumentService documentService;
+
+    @Value("${app.documents-path}")
+    private String documentsPath;
 
     @Value("${app.rag.max-results:" + DEFAULT_MAX_RESULTS + "}")
     private int maxResults = DEFAULT_MAX_RESULTS;
@@ -82,12 +98,20 @@ public class RagService {
     @Value("${app.rag.chunk-overlap:" + DEFAULT_CHUNK_OVERLAP + "}")
     private int chunkOverlap = DEFAULT_CHUNK_OVERLAP;
 
+    @Value("${app.chat.session.max:" + DEFAULT_MAX_SESSIONS + "}")
+    private int maxSessions = DEFAULT_MAX_SESSIONS;
+
+    @Value("${app.chat.session.ttl-minutes:" + DEFAULT_SESSION_TTL_MINUTES + "}")
+    private long sessionTtlMinutes = DEFAULT_SESSION_TTL_MINUTES;
+
     private EmbeddingStore<TextSegment> embeddingStore;
     private volatile List<TextSegment> indexedSegments = Collections.emptyList();
     private volatile Map<String, IndexedDocument> indexedDocumentCache = Collections.emptyMap();
     private boolean indexReady;
+    private boolean storeLoadedFromDisk;
 
-    private final Map<String, MessageWindowChatMemory> sessionMemories = new ConcurrentHashMap<>();
+    private Cache<String, MessageWindowChatMemory> sessionMemories = buildSessionCache(
+            DEFAULT_MAX_SESSIONS, DEFAULT_SESSION_TTL_MINUTES);
 
     public RagService(ChatLanguageModel chatLanguageModel,
                       StreamingChatLanguageModel streamingChatLanguageModel,
@@ -104,13 +128,24 @@ public class RagService {
     @PostConstruct
     public void init() {
         logger.info("Initializing RAG Service");
+        this.sessionMemories = buildSessionCache(
+                Math.max(100, maxSessions), Math.max(5, sessionTtlMinutes));
+        boolean loaded = tryLoadStoreFromFile();
+        if (loaded) {
+            logger.info("Loaded persisted vector store, running incremental refresh");
+        } else {
+            logger.info("No persisted vector store found, running full index build");
+        }
         refreshIndex();
     }
 
     public synchronized void refreshIndex() {
         try {
             logger.info("Starting index refresh");
-            this.embeddingStore = new InMemoryEmbeddingStore<>();
+            // Only create a fresh store if there isn't one already (e.g. loaded from disk)
+            if (!storeLoadedFromDisk) {
+                this.embeddingStore = new InMemoryEmbeddingStore<>();
+            }
             List<TextSegment> refreshedSegments = new ArrayList<>();
             Map<String, IndexedDocument> refreshedCache = new LinkedHashMap<>();
             Map<String, IndexedDocument> previousCache = indexedDocumentCache;
@@ -162,6 +197,7 @@ public class RagService {
             indexedSegments = Collections.unmodifiableList(refreshedSegments);
             indexedDocumentCache = Collections.unmodifiableMap(refreshedCache);
             indexReady = true;
+            saveStoreToFile();
             logger.info("Index refresh completed successfully");
         } catch (Exception e) {
             logger.error("Error during index refresh", e);
@@ -178,6 +214,10 @@ public class RagService {
     }
 
     public RagAnswer ask(String question, String sessionId, String knowledgeBase) {
+        return ask(question, sessionId, knowledgeBase, false);
+    }
+
+    public RagAnswer ask(String question, String sessionId, String knowledgeBase, boolean debug) {
         try {
             if (!indexReady) {
                 logger.warn("Index is not initialized");
@@ -185,7 +225,8 @@ public class RagService {
             }
 
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
-            List<SourceReference> sources = retrieveSources(question, kb);
+            RetrievalResult result = retrieveSources(question, kb, debug);
+            List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
                 documentService.recordKnowledgeGap(kb, question, sessionId);
             }
@@ -197,7 +238,9 @@ public class RagService {
             memory.add(AiMessage.from(response));
 
             String answer = sources.isEmpty() ? response + formatOwnerSuggestion(kb) : response + formatSources(sources);
-            return new RagAnswer(answer, sources, !sources.isEmpty());
+            RagAnswer ragAnswer = new RagAnswer(answer, sources, !sources.isEmpty());
+            ragAnswer.setDebugInfo(result.debugInfo());
+            return ragAnswer;
         } catch (Exception e) {
             logger.error("Error processing question", e);
             throw new RuntimeException("处理问题时发生错误", e);
@@ -219,6 +262,18 @@ public class RagService {
                           Consumer<List<SourceReference>> onSources,
                           Runnable onComplete,
                           Consumer<Throwable> onError) {
+        askStream(question, sessionId, knowledgeBase, onNext, onSources, null, onComplete, onError, false);
+    }
+
+    public void askStream(String question,
+                          String sessionId,
+                          String knowledgeBase,
+                          Consumer<String> onNext,
+                          Consumer<List<SourceReference>> onSources,
+                          Consumer<RetrievalDebugInfo> onDebug,
+                          Runnable onComplete,
+                          Consumer<Throwable> onError,
+                          boolean debug) {
         try {
             if (!indexReady) {
                 logger.warn("Index is not initialized");
@@ -228,7 +283,8 @@ public class RagService {
             }
 
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
-            List<SourceReference> sources = retrieveSources(question, kb);
+            RetrievalResult result = retrieveSources(question, kb, debug);
+            List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
                 documentService.recordKnowledgeGap(kb, question, sessionId);
             }
@@ -253,6 +309,9 @@ public class RagService {
                         onSources.accept(sources);
                     } else {
                         onNext.accept(formatOwnerSuggestion(kb));
+                    }
+                    if (onDebug != null && result.debugInfo() != null) {
+                        onDebug.accept(result.debugInfo());
                     }
                     memory.add(UserMessage.from(question));
                     memory.add(AiMessage.from(generated.toString()));
@@ -303,7 +362,9 @@ public class RagService {
         return enriched;
     }
 
-    private List<SourceReference> retrieveSources(String question, String knowledgeBase) {
+    private record RetrievalResult(List<SourceReference> sources, RetrievalDebugInfo debugInfo) {}
+
+    private RetrievalResult retrieveSources(String question, String knowledgeBase, boolean debug) {
         Embedding queryEmbedding = embeddingModel.embed(question).content();
         List<EmbeddingMatch<TextSegment>> matches = embeddingStore.findRelevant(
                 queryEmbedding,
@@ -311,7 +372,9 @@ public class RagService {
                 validMinScore()
         );
         Map<String, RetrievedCandidate> candidates = new LinkedHashMap<>();
+        Map<String, String> matchTypes = new LinkedHashMap<>();
 
+        // Track vector matches
         for (EmbeddingMatch<TextSegment> match : matches) {
             TextSegment segment = match.embedded();
             String segmentKnowledgeBase = firstNonBlank(segment.metadata(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
@@ -319,35 +382,76 @@ public class RagService {
                 continue;
             }
 
+            String chunkId = firstNonBlank(segment.metadata(CHUNK_ID), String.valueOf(segment.hashCode()));
+            matchTypes.put(chunkId, "VECTOR");
             addCandidate(candidates, segment, match.score());
         }
 
+        // Track keyword matches
         for (RetrievedCandidate candidate : keywordCandidates(question, knowledgeBase)) {
+            String chunkId = firstNonBlank(candidate.segment().metadata(CHUNK_ID), String.valueOf(candidate.segment().hashCode()));
+            if (!matchTypes.containsKey(chunkId)) {
+                matchTypes.put(chunkId, "KEYWORD");
+            } else {
+                matchTypes.put(chunkId, "BOTH");
+            }
             addCandidate(candidates, candidate.segment(), candidate.score());
         }
 
         List<RetrievedCandidate> sortedCandidates = candidates.values()
                 .stream()
                 .sorted(Comparator.comparing(RetrievedCandidate::score).reversed())
-                .limit(validMaxResults())
                 .toList();
 
+        // Build used set (top N)
+        int maxResults = validMaxResults();
+        Set<String> usedChunkIds = new HashSet<>();
+        for (int i = 0; i < Math.min(maxResults, sortedCandidates.size()); i++) {
+            String chunkId = firstNonBlank(sortedCandidates.get(i).segment().metadata(CHUNK_ID), "unknown");
+            usedChunkIds.add(chunkId);
+        }
+
         List<SourceReference> sources = new ArrayList<>();
+        List<RetrievalDebugInfo.CandidateDebug> allDebugCandidates = new ArrayList<>();
+
         for (RetrievedCandidate candidate : sortedCandidates) {
             TextSegment segment = candidate.segment();
             String segmentKnowledgeBase = firstNonBlank(segment.metadata(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
-            sources.add(new SourceReference(
-                    sources.size() + 1,
-                    segmentKnowledgeBase,
-                    firstNonBlank(segment.metadata(Document.FILE_NAME), "未知文件"),
-                    firstNonBlank(segment.metadata(PAGE), segment.metadata("page_number")),
-                    firstNonBlank(segment.metadata(CHUNK_ID), "unknown"),
-                    segment.text(),
-                    candidate.score()
-            ));
+            String chunkId = firstNonBlank(segment.metadata(CHUNK_ID), "unknown");
+            boolean used = usedChunkIds.contains(chunkId);
+
+            if (used) {
+                sources.add(new SourceReference(
+                        sources.size() + 1,
+                        segmentKnowledgeBase,
+                        firstNonBlank(segment.metadata(Document.FILE_NAME), "未知文件"),
+                        firstNonBlank(segment.metadata(PAGE), segment.metadata("page_number")),
+                        chunkId,
+                        segment.text(),
+                        candidate.score()
+                ));
+            }
+
+            if (debug) {
+                String matchType = matchTypes.getOrDefault(chunkId, "VECTOR");
+                allDebugCandidates.add(new RetrievalDebugInfo.CandidateDebug(
+                        chunkId,
+                        firstNonBlank(segment.metadata(Document.FILE_NAME), "未知文件"),
+                        segmentKnowledgeBase,
+                        segment.text(),
+                        candidate.score(),
+                        matchType,
+                        used
+                ));
+            }
         }
 
-        return sources;
+        RetrievalDebugInfo debugInfo = null;
+        if (debug) {
+            debugInfo = new RetrievalDebugInfo(allDebugCandidates, sources.size(), knowledgeBase);
+        }
+
+        return new RetrievalResult(sources, debugInfo);
     }
 
     private List<ChatMessage> buildMessages(MessageWindowChatMemory memory,
@@ -504,7 +608,8 @@ public class RagService {
 
     private MessageWindowChatMemory getOrCreateMemory(String sessionId, String knowledgeBase) {
         String id = isBlank(sessionId) ? "default" : sessionId;
-        return sessionMemories.computeIfAbsent(knowledgeBase + ":" + id, ignored -> MessageWindowChatMemory.withMaxMessages(10));
+        return sessionMemories.get(knowledgeBase + ":" + id,
+                ignored -> MessageWindowChatMemory.withMaxMessages(10));
     }
 
     public int clearSessionMemory(String sessionId) {
@@ -512,13 +617,22 @@ public class RagService {
             return 0;
         }
         String suffix = ":" + sessionId.trim();
-        int before = sessionMemories.size();
-        sessionMemories.keySet().removeIf(key -> key.endsWith(suffix));
-        return before - sessionMemories.size();
+        List<String> toRemove = sessionMemories.asMap().keySet().stream()
+                .filter(key -> key.endsWith(suffix))
+                .toList();
+        toRemove.forEach(sessionMemories::invalidate);
+        return toRemove.size();
     }
 
     int sessionMemoryCount() {
-        return sessionMemories.size();
+        return (int) sessionMemories.estimatedSize();
+    }
+
+    private Cache<String, MessageWindowChatMemory> buildSessionCache(int maxSize, long ttlMinutes) {
+        return Caffeine.newBuilder()
+                .maximumSize(maxSize)
+                .expireAfterAccess(ttlMinutes, TimeUnit.MINUTES)
+                .build();
     }
 
     private String documentKey(DocumentFileInfo fileInfo) {
@@ -665,6 +779,96 @@ public class RagService {
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
+
+    private boolean tryLoadStoreFromFile() {
+        try {
+            Path storePath = storeFilePath();
+            if (!Files.exists(storePath)) {
+                return false;
+            }
+            long sizeBytes = Files.size(storePath);
+            logger.info("Loading persisted vector store from {}, size={} bytes", storePath, sizeBytes);
+            InMemoryEmbeddingStore<TextSegment> loaded = InMemoryEmbeddingStore.fromFile(storePath);
+            this.embeddingStore = loaded;
+            this.storeLoadedFromDisk = true;
+            // Mark as ready immediately; refreshIndex() will update incrementally
+            this.indexReady = true;
+            logger.info("Persisted vector store loaded successfully");
+            // Also load the document cache for fingerprinting
+            loadCacheFromFile();
+            return true;
+        } catch (Exception e) {
+            logger.warn("Failed to load persisted vector store, will rebuild from documents: {}", e.getMessage());
+            this.storeLoadedFromDisk = false;
+            return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadCacheFromFile() {
+        try {
+            Path cachePath = cacheFilePath();
+            if (!Files.exists(cachePath)) {
+                logger.info("No index cache file found, will rebuild fingerprints");
+                return;
+            }
+            Map<String, CacheEntry> raw = CACHE_MAPPER.readValue(
+                    cachePath.toFile(),
+                    new TypeReference<Map<String, CacheEntry>>() {}
+            );
+            Map<String, IndexedDocument> restored = new LinkedHashMap<>();
+            for (Map.Entry<String, CacheEntry> entry : raw.entrySet()) {
+                CacheEntry ce = entry.getValue();
+                restored.put(entry.getKey(), new IndexedDocument(ce.fingerprint, List.of(), List.of()));
+            }
+            this.indexedDocumentCache = Collections.unmodifiableMap(restored);
+            logger.info("Index cache loaded: {} document entries", restored.size());
+        } catch (Exception e) {
+            logger.warn("Failed to load index cache, will rebuild fingerprints: {}", e.getMessage());
+        }
+    }
+
+    private void saveStoreToFile() {
+        try {
+            Path storePath = storeFilePath();
+            Files.createDirectories(storePath.getParent());
+            // Atomic write: save to temp file, then rename
+            Path tempPath = storePath.resolveSibling(STORE_FILE + ".tmp");
+            if (embeddingStore instanceof InMemoryEmbeddingStore<TextSegment> inMemory) {
+                inMemory.serializeToFile(tempPath);
+                Files.move(tempPath, storePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                logger.info("Vector store persisted to {}, size={} bytes", storePath, Files.size(storePath));
+            }
+            saveCacheToFile();
+        } catch (Exception e) {
+            logger.warn("Failed to persist vector store: {}", e.getMessage());
+        }
+    }
+
+    private void saveCacheToFile() {
+        try {
+            Path cachePath = cacheFilePath();
+            Map<String, CacheEntry> serializable = new LinkedHashMap<>();
+            for (Map.Entry<String, IndexedDocument> entry : indexedDocumentCache.entrySet()) {
+                serializable.put(entry.getKey(), new CacheEntry(entry.getValue().fingerprint()));
+            }
+            CACHE_MAPPER.writerWithDefaultPrettyPrinter().writeValue(cachePath.toFile(), serializable);
+            logger.debug("Index cache persisted: {} entries", serializable.size());
+        } catch (Exception e) {
+            logger.warn("Failed to persist index cache: {}", e.getMessage());
+        }
+    }
+
+    private Path storeFilePath() {
+        return Paths.get(documentsPath).resolve(STORE_FILE);
+    }
+
+    private Path cacheFilePath() {
+        return Paths.get(documentsPath).resolve(CACHE_FILE);
+    }
+
+    private record CacheEntry(String fingerprint) {}
 
     private record RetrievedCandidate(TextSegment segment, double score) {
     }

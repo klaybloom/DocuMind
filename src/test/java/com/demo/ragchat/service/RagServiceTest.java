@@ -1,7 +1,10 @@
 package com.demo.ragchat.service;
 
+import com.demo.ragchat.dto.DocumentFileInfo;
 import com.demo.ragchat.dto.KnowledgeGapInfo;
 import com.demo.ragchat.dto.RagAnswer;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
@@ -17,8 +20,11 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +34,9 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RagServiceTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void askUsesGeneralModelWhenNoDocumentSourcesAreFound() {
@@ -197,6 +206,66 @@ class RagServiceTest {
         assertThat(ragService.clearSessionMemory("missing")).isZero();
     }
 
+    @Test
+    void saveAndLoadStoreFromFilePersistsEmbeddingsAcrossInstances() throws Exception {
+        InMemoryEmbeddingStore<TextSegment> store = new InMemoryEmbeddingStore<>();
+        TextSegment segment = TextSegment.from("报销流程需要正规发票。", metadata("HR/policy.txt#1"));
+        store.addAll(List.of(Embedding.from(new float[]{1.0f})), List.of(segment));
+
+        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("基于文档回答。");
+        TestDocumentService documentService = new TestDocumentService();
+        RagService original = service(chatModel, noOpStreamingModel(), documentService, store);
+        ReflectionTestUtils.setField(original, "documentsPath", tempDir.toString());
+
+        // Trigger save
+        original.refreshIndex();
+
+        // Verify store file was created
+        Path storeFile = tempDir.resolve(".documind-vectors.json");
+        assertThat(storeFile).exists();
+        assertThat(Files.size(storeFile)).isGreaterThan(0);
+
+        // Verify cache file was created
+        Path cacheFile = tempDir.resolve(".documind-index-cache.json");
+        assertThat(cacheFile).exists();
+
+        // Create a new instance and verify it loads the persisted store
+        RagService restored = service(
+                new RecordingChatLanguageModel("恢复后的回答。"),
+                noOpStreamingModel(),
+                documentService,
+                new InMemoryEmbeddingStore<>()
+        );
+        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
+        boolean loaded = (boolean) ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
+        assertThat(loaded).isTrue();
+
+        // The restored store should be usable immediately
+        assertThat(restored.isIndexReady()).isTrue();
+    }
+
+    @Test
+    void sessionMemoryIsBoundedByMaxSize() {
+        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("回答。");
+        TestDocumentService documentService = new TestDocumentService();
+        RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
+        // Set a tiny cache for testing
+        Cache<String, dev.langchain4j.memory.chat.MessageWindowChatMemory> cache =
+                Caffeine.newBuilder().maximumSize(3).build();
+        ReflectionTestUtils.setField(ragService, "sessionMemories", cache);
+
+        ragService.ask("问题1", "s1", "HR");
+        ragService.ask("问题2", "s2", "HR");
+        ragService.ask("问题3", "s3", "HR");
+        cache.cleanUp();
+        assertThat(ragService.sessionMemoryCount()).isEqualTo(3);
+
+        // Adding a 4th session should evict the oldest
+        ragService.ask("问题4", "s4", "HR");
+        cache.cleanUp();
+        assertThat(ragService.sessionMemoryCount()).isLessThanOrEqualTo(3);
+    }
+
     private RagService service(ChatLanguageModel chatModel,
                                StreamingChatLanguageModel streamingModel,
                                DocumentService documentService) {
@@ -215,6 +284,8 @@ class RagServiceTest {
                 documentService
         );
         ReflectionTestUtils.setField(ragService, "indexReady", true);
+        ReflectionTestUtils.setField(ragService, "sessionMemories",
+                Caffeine.newBuilder().maximumSize(100).build());
         return ragService;
     }
 
@@ -272,6 +343,16 @@ class RagServiceTest {
         @Override
         public String normalizeKnowledgeBase(String knowledgeBase) {
             return knowledgeBase == null || knowledgeBase.trim().isEmpty() ? DEFAULT_KNOWLEDGE_BASE : knowledgeBase;
+        }
+
+        @Override
+        public synchronized List<DocumentFileInfo> listDocumentFiles() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public synchronized List<DocumentFileInfo> listDocumentFiles(String knowledgeBase) {
+            return Collections.emptyList();
         }
 
         @Override

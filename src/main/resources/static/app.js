@@ -49,12 +49,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const faqDraft = document.getElementById('faq-draft');
     const themeToggle = document.getElementById('theme-toggle');
     const themeLabel = document.getElementById('theme-label');
+    const debugToggle = document.getElementById('debug-toggle');
 
     const STORAGE_KEY = 'documind_conversations';
     const THEME_KEY = 'documind_theme';
     const KNOWLEDGE_BASE_KEY = 'documind_knowledge_base';
     const AUTH_KEY = 'documind_auth';
+    const DEBUG_KEY = 'documind_debug_mode';
     const DEFAULT_KNOWLEDGE_BASE = 'default';
+
+    // Initialize debug toggle state
+    if (debugToggle) {
+        debugToggle.checked = debugMode;
+        debugToggle.addEventListener('change', () => {
+            debugMode = debugToggle.checked;
+            localStorage.setItem(DEBUG_KEY, debugMode ? 'true' : 'false');
+        });
+    }
 
     // 认证状态
     let authCredentials = null;  // Base64 编码的 "username:password"
@@ -182,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let conversations = loadConversations();
     let currentId = null;
     let currentKnowledgeBase = localStorage.getItem(KNOWLEDGE_BASE_KEY) || DEFAULT_KNOWLEDGE_BASE;
+    let debugMode = localStorage.getItem('documind_debug_mode') === 'true';
 
     function loadConversations() {
         try {
@@ -458,6 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 status.className = `file-status ${statusClass(file.indexStatus)}`;
                 status.textContent = `${statusText(file)}${file.owner ? ' · 负责人 ' + file.owner : ''}`;
 
+                const detail = statusDetailText(file);
+                if (detail) {
+                    const statusDetail = document.createElement('span');
+                    statusDetail.className = 'file-status-detail';
+                    statusDetail.textContent = detail;
+                    meta.appendChild(statusDetail);
+                }
+
                 meta.appendChild(name);
                 meta.appendChild(status);
 
@@ -640,6 +660,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (file.indexStatus === 'FAILED') return `索引失败${file.error ? ' · ' + file.error : ''}`;
         if (file.indexStatus === 'INDEXING') return `索引中${stale}`;
         return `待索引${stale}`;
+    }
+
+    function statusDetailText(file) {
+        if (file.indexStatus === 'INDEXED' && file.lastIndexedAt) {
+            return `索引于 ${formatDateTime(file.lastIndexedAt)}`;
+        }
+        if (file.indexStatus === 'FAILED' && file.lastIndexedAt) {
+            return `失败于 ${formatDateTime(file.lastIndexedAt)}`;
+        }
+        return '';
     }
 
     function formatDate(value) {
@@ -877,6 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const textDiv = assistantRow.querySelector('.message-text');
         let assistantText = '';
         let pendingSources = null;
+        let pendingDebugInfo = null;
 
         try {
             await streamChatResponse(message, currentId, {
@@ -888,16 +919,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 onSources: (sources) => {
                     pendingSources = sources;
                 },
+                onDebug: (debugInfo) => {
+                    pendingDebugInfo = debugInfo;
+                },
                 onError: (errorMessage) => {
                     throw new Error(errorMessage);
                 }
-            });
+            }, debugMode);
 
             if (assistantText.trim() !== '') {
                 persistMessage('assistant', assistantText);
             }
             if (pendingSources && pendingSources.length > 0) {
                 renderSourceCards(assistantRow, pendingSources);
+            }
+            if (pendingDebugInfo) {
+                renderDebugPanel(assistantRow, pendingDebugInfo);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -914,8 +951,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    async function streamChatResponse(message, sessionId, handlers) {
-        const response = await authFetch('/api/chat/stream', {
+    async function streamChatResponse(message, sessionId, handlers, debug = false) {
+        const url = debug ? '/api/chat/stream?debug=true' : '/api/chat/stream';
+        const response = await authFetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, sessionId, knowledgeBase: currentKnowledgeBase })
@@ -985,6 +1023,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 console.error('Failed to parse sources event:', e);
+            }
+        }
+        if (event.name === 'debug') {
+            try {
+                const debugInfo = JSON.parse(event.data);
+                if (handlers.onDebug) {
+                    handlers.onDebug(debugInfo);
+                }
+            } catch (e) {
+                console.error('Failed to parse debug event:', e);
             }
         }
         if (event.name === 'error') {
@@ -1089,6 +1137,13 @@ document.addEventListener('DOMContentLoaded', () => {
             userInput.focus();
         });
     });
+    document.querySelectorAll('.hero-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            userInput.value = button.dataset.prompt || '';
+            userInput.dispatchEvent(new Event('input'));
+            userInput.focus();
+        });
+    });
 
     function appendMessage(role, text, id = null, isHtml = false) {
         const row = document.createElement('div');
@@ -1164,6 +1219,87 @@ document.addEventListener('DOMContentLoaded', () => {
             textDiv.parentNode.appendChild(wrapper);
         }
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function renderDebugPanel(container, debugInfo) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'debug-panel';
+
+        const header = document.createElement('div');
+        header.className = 'debug-panel-header';
+        header.innerHTML = `
+            <span class="debug-panel-title">检索调试信息</span>
+            <span class="debug-panel-summary">共 ${debugInfo.allCandidates ? debugInfo.allCandidates.length : 0} 个候选，${debugInfo.usedCount || 0} 个被采用</span>
+        `;
+        wrapper.appendChild(header);
+
+        const content = document.createElement('div');
+        content.className = 'debug-panel-content collapsed';
+
+        if (debugInfo.allCandidates && debugInfo.allCandidates.length > 0) {
+            const table = document.createElement('table');
+            table.className = 'debug-table';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>得分</th>
+                        <th>匹配</th>
+                        <th>文件</th>
+                        <th>片段</th>
+                        <th>采用</th>
+                        <th>摘录</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${debugInfo.allCandidates.map(c => `
+                        <tr class="${c.usedInAnswer ? 'debug-used' : 'debug-unused'}">
+                            <td><span class="debug-score ${c.score >= 0.8 ? 'high' : c.score >= 0.6 ? 'medium' : 'low'}">${Math.round(c.score * 100)}%</span></td>
+                            <td><span class="debug-match-type ${c.matchType.toLowerCase()}">${c.matchType}</span></td>
+                            <td title="${escapeHtml(c.fileName || '')}">${escapeHtml(truncateFilename(c.fileName || ''))}</td>
+                            <td title="${escapeHtml(c.chunkId || '')}">${escapeHtml(c.chunkId || '')}</td>
+                            <td>${c.usedInAnswer ? '✓' : '✗'}</td>
+                            <td title="${escapeHtml(c.text || '')}">${escapeHtml((c.text || '').substring(0, 80))}${(c.text || '').length > 80 ? '...' : ''}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            content.appendChild(table);
+        } else {
+            content.innerHTML = '<p class="debug-empty">无候选片段</p>';
+        }
+
+        wrapper.appendChild(content);
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'debug-toggle-btn';
+        toggleBtn.type = 'button';
+        toggleBtn.textContent = '展开调试信息';
+        toggleBtn.addEventListener('click', () => {
+            const expanded = content.classList.contains('collapsed');
+            content.classList.toggle('collapsed', !expanded);
+            toggleBtn.textContent = expanded ? '收起调试信息' : '展开调试信息';
+        });
+        wrapper.appendChild(toggleBtn);
+
+        const textDiv = container.querySelector('.message-text');
+        const sourceCards = container.querySelector('.source-cards');
+        const insertAfter = sourceCards || textDiv;
+        if (insertAfter && insertAfter.nextSibling) {
+            insertAfter.parentNode.insertBefore(wrapper, insertAfter.nextSibling);
+        } else if (insertAfter) {
+            insertAfter.parentNode.appendChild(wrapper);
+        }
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function truncateFilename(filename) {
+        if (!filename) return '';
+        if (filename.length <= 20) return filename;
+        const ext = filename.lastIndexOf('.');
+        if (ext > 0) {
+            return filename.substring(0, 12) + '...' + filename.substring(ext);
+        }
+        return filename.substring(0, 17) + '...';
     }
 
     function getFileTypeLabel(filename) {
