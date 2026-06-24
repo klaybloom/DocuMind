@@ -35,10 +35,18 @@
     <div class="app-root hidden" id="app-root">
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
-        <button class="new-chat-btn" id="new-chat-btn">
-            <i data-lucide="plus"></i>
-            开启新对话
-        </button>
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <span class="brand-mark">D</span>
+                <span>DocuMind</span>
+            </div>
+            <button class="new-chat-btn" id="new-chat-btn" type="button" aria-label="开启新对话" title="开启新对话">
+                <i data-lucide="square-pen"></i>
+            </button>
+            <button class="mobile-sidebar-close" id="mobile-sidebar-close" type="button" aria-label="关闭侧边栏" title="关闭侧边栏">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
 
         <div class="sidebar-scroll">
             <div class="sidebar-section">
@@ -73,29 +81,49 @@
 
     <!-- 主聊天区域 -->
     <main class="main-chat">
+        <header class="chat-topbar">
+            <div class="topbar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="收起或展开侧边栏" title="收起或展开侧边栏">
+                    <i data-lucide="panel-left"></i>
+                </button>
+                <button class="topbar-title" type="button" id="topbar-documents-btn">
+                    <span>DocuMind</span>
+                    <i data-lucide="chevron-down"></i>
+                </button>
+            </div>
+            <div class="topbar-right">
+                <span class="topbar-kb-label">知识库</span>
+                <select id="knowledge-base-select"></select>
+                <label class="debug-toggle-label" title="启用后显示检索调试信息">
+                    <input type="checkbox" id="debug-toggle">
+                    <span>Debug</span>
+                </label>
+            </div>
+        </header>
+
         <!-- 聊天容器 -->
         <div class="chat-container" id="chat-messages">
             <!-- 欢迎页面 -->
             <div class="welcome-screen" id="welcome-screen">
-                <h1>DocuMind</h1>
-                <p>选择一个问题开始对话</p>
+                <h1>今天想了解什么？</h1>
 
                 <div class="prompt-grid">
-                    <button class="prompt-chip" type="button" data-prompt="总结当前文档的核心内容">总结当前文档</button>
-                    <button class="prompt-chip" type="button" data-prompt="提取文档中的关键信息和待办事项">提取关键信息</button>
-                    <button class="prompt-chip" type="button" data-prompt="根据已上传文档回答我的问题">根据文档问答</button>
-                    <button class="prompt-chip" type="button" data-prompt="列出文档里可能需要进一步确认的内容">列出待确认内容</button>
-                </div>
-
-                <div class="hero-banner">
-                    <div class="hero-icon">🚀</div>
-                    <h2 class="hero-title">DocuMind AI 助手</h2>
-                    <p class="hero-desc">基于本地文档的智能检索问答助手，支持多种文档格式</p>
-                    <div class="hero-actions">
-                        <button class="hero-btn" type="button" data-prompt="总结当前文档的核心内容">📋 总结文档内容</button>
-                        <button class="hero-btn" type="button" data-prompt="提取文档中的关键信息和待办事项">🔍 提取关键信息</button>
-                        <button class="hero-btn" type="button" data-prompt="根据已上传文档回答我的问题">❓ 文档问答</button>
-                    </div>
+                    <button class="prompt-chip" type="button" data-prompt="总结当前文档的核心内容">
+                        <span>总结当前文档</span>
+                        <small>提炼主要内容和结论</small>
+                    </button>
+                    <button class="prompt-chip" type="button" data-prompt="提取文档中的关键信息和待办事项">
+                        <span>提取关键信息</span>
+                        <small>列出事实、日期和待办</small>
+                    </button>
+                    <button class="prompt-chip" type="button" data-prompt="根据已上传文档回答我的问题">
+                        <span>根据文档问答</span>
+                        <small>只基于知识库内容回答</small>
+                    </button>
+                    <button class="prompt-chip" type="button" data-prompt="列出文档里可能需要进一步确认的内容">
+                        <span>列出待确认内容</span>
+                        <small>发现缺口和不确定信息</small>
+                    </button>
                 </div>
             </div>
         </div>
@@ -103,14 +131,6 @@
         <!-- 输入区域 -->
         <div class="input-area">
             <div class="input-container-inner">
-                <div class="knowledge-base-bar">
-                    <label for="knowledge-base-select">知识库</label>
-                    <select id="knowledge-base-select"></select>
-                    <label class="debug-toggle-label" title="启用后显示检索调试信息">
-                        <input type="checkbox" id="debug-toggle">
-                        <span>Debug</span>
-                    </label>
-                </div>
                 <div class="input-box">
                     <textarea id="user-input" placeholder="输入您想咨询的问题..." rows="1"></textarea>
                     <button id="send-btn" class="send-btn" disabled>

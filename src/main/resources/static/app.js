@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyList = document.getElementById('history-list');
     const historyEmpty = document.getElementById('history-empty');
     const documentsBtn = document.getElementById('documents-btn');
+    const topbarDocumentsBtn = document.getElementById('topbar-documents-btn');
     const documentModal = document.getElementById('document-modal');
     const closeDocumentModal = document.getElementById('close-document-modal');
     const fileInput = document.getElementById('file-input');
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.getElementById('theme-toggle');
     const themeLabel = document.getElementById('theme-label');
     const debugToggle = document.getElementById('debug-toggle');
+    const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
 
     const STORAGE_KEY = 'documind_conversations';
     const THEME_KEY = 'documind_theme';
@@ -66,6 +68,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     refreshIcons();
+
+    // 侧边栏收起/展开
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const SIDEBAR_KEY = 'documind_sidebar_collapsed';
+    if (sidebarToggle) {
+        const storedSidebarState = localStorage.getItem(SIDEBAR_KEY);
+        const preferCollapsedSidebar = storedSidebarState === 'true'
+            || (storedSidebarState === null && window.matchMedia('(max-width: 840px)').matches);
+        if (preferCollapsedSidebar) {
+            appRoot.classList.add('sidebar-collapsed');
+        }
+        sidebarToggle.addEventListener('click', () => {
+            appRoot.classList.toggle('sidebar-collapsed');
+            localStorage.setItem(SIDEBAR_KEY,
+                appRoot.classList.contains('sidebar-collapsed') ? 'true' : 'false');
+        });
+    }
+    if (mobileSidebarClose) {
+        mobileSidebarClose.addEventListener('click', () => {
+            appRoot.classList.add('sidebar-collapsed');
+            localStorage.setItem(SIDEBAR_KEY, 'true');
+        });
+    }
 
     // Initialize debug toggle state
     if (debugToggle) {
@@ -1142,6 +1167,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     documentsBtn.addEventListener('click', showDocumentModal);
+    if (topbarDocumentsBtn) {
+        topbarDocumentsBtn.addEventListener('click', showDocumentModal);
+    }
     closeDocumentModal.addEventListener('click', hideDocumentModal);
     documentModal.addEventListener('click', (event) => {
         if (event.target === documentModal) hideDocumentModal();
@@ -1201,13 +1229,6 @@ document.addEventListener('DOMContentLoaded', () => {
         applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
     });
     document.querySelectorAll('.prompt-chip').forEach(button => {
-        button.addEventListener('click', () => {
-            userInput.value = button.dataset.prompt || '';
-            userInput.dispatchEvent(new Event('input'));
-            userInput.focus();
-        });
-    });
-    document.querySelectorAll('.hero-btn').forEach(button => {
         button.addEventListener('click', () => {
             userInput.value = button.dataset.prompt || '';
             userInput.dispatchEvent(new Event('input'));
