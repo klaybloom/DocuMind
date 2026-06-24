@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update pom.xml version
+        run: mvn versions:set -DnewVersion=${{ steps.version.outputs.VERSION }} -B
+
+      - name: Run tests
+        run: mvn test -B
+
+      - name: Build JAR
+        run: mvn package -DskipTests -B
+
+      - name: Build Docker image
+        run: |
+          docker build -t documind:${{ steps.version.outputs.VERSION }} .
+          docker tag documind:${{ steps.version.outputs.VERSION }} documind:latest
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: target/documind-${{ steps.version.outputs.VERSION }}.jar
+          body: |
+            ## DocuMind ${{ github.ref_name }}
+
+            ### Quick Start
+
+            **Docker:**
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            docker run -d -p 8080:8080 \
+              -v /opt/documind/documents:/data/documents \
+              -e DEEPSEEK_API_KEY=your_key \
+              -e DOCUMIND_ADMIN_PASSWORD=your_password \
+              ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            ```
+
+            **JAR:**
+            ```bash
+            java -jar documind-${{ steps.version.outputs.VERSION }}.jar \
+              --app.documents-path=/opt/documind/documents
+            ```
+
+            See [CHANGELOG.md](CHANGELOG.md) for full details.
