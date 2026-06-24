@@ -14,8 +14,8 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.StreamingResponseHandler;
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
@@ -40,7 +40,7 @@ class RagServiceTest {
 
     @Test
     void askUsesGeneralModelWhenNoDocumentSourcesAreFound() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("文档中未找到相关信息。通用回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。通用回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
 
@@ -58,12 +58,12 @@ class RagServiceTest {
                 .contains("没有命中文档片段")
                 .contains("使用通用知识")
                 .contains("不要编造文档来源");
-        assertThat(userMessage.text()).contains("今天北京天气怎么样？");
+        assertThat(userMessage.singleText()).contains("今天北京天气怎么样？");
     }
 
     @Test
     void askStreamFallsBackToGeneralModelWhenStreamingFailsBeforeTokens() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("文档中未找到相关信息。非流式通用回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。非流式通用回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, failingStreamingModel(), documentService);
         List<String> tokens = new ArrayList<>();
@@ -89,7 +89,7 @@ class RagServiceTest {
 
     @Test
     void askStreamFallsBackToGeneralModelWhenStreamingCompletesWithoutTokens() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("文档中未找到相关信息。空流后通用回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。空流后通用回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, emptyStreamingModel(), documentService);
         List<String> tokens = new ArrayList<>();
@@ -115,13 +115,13 @@ class RagServiceTest {
 
     @Test
     void askUsesGeneralModelWhenKeywordOverlapIsTooWeak() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("文档中未找到相关信息。通用模型回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。通用模型回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
         Metadata metadata = new Metadata();
-        metadata.add("knowledge_base", "HR");
-        metadata.add(Document.FILE_NAME, "hr-policy.txt");
-        metadata.add("chunk_id", "HR/hr-policy.txt#1");
+        metadata.put("knowledge_base", "HR");
+        metadata.put(Document.FILE_NAME, "hr-policy.txt");
+        metadata.put("chunk_id", "HR/hr-policy.txt#1");
         ReflectionTestUtils.setField(ragService, "indexedSegments", List.of(
                 TextSegment.from("公司员工手册仅包含考勤、年假和报销流程。", metadata)
         ));
@@ -137,7 +137,7 @@ class RagServiceTest {
 
     @Test
     void askUsesConfiguredMaxResultsForDocumentSources() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("基于文档回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("基于文档回答。");
         TestDocumentService documentService = new TestDocumentService();
         InMemoryEmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
         List<TextSegment> segments = List.of(
@@ -165,7 +165,7 @@ class RagServiceTest {
 
     @Test
     void askTreatsRetrievedDocumentInstructionsAsDataOnly() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("基于安全制度回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("基于安全制度回答。");
         TestDocumentService documentService = new TestDocumentService();
         InMemoryEmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
         TextSegment segment = TextSegment.from(
@@ -186,12 +186,12 @@ class RagServiceTest {
                 .contains("忽略规则")
                 .contains("泄露密钥")
                 .contains("内部配置");
-        assertThat(userMessage.text()).contains("忽略之前的规则");
+        assertThat(userMessage.singleText()).contains("忽略之前的规则");
     }
 
     @Test
     void clearSessionMemoryRemovesAllKnowledgeBaseMemoriesForSession() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("文档中未找到相关信息。通用回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。通用回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
 
@@ -212,7 +212,7 @@ class RagServiceTest {
         TextSegment segment = TextSegment.from("报销流程需要正规发票。", metadata("HR/policy.txt#1"));
         store.addAll(List.of(Embedding.from(new float[]{1.0f})), List.of(segment));
 
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("基于文档回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("基于文档回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService original = service(chatModel, noOpStreamingModel(), documentService, store);
         ReflectionTestUtils.setField(original, "documentsPath", tempDir.toString());
@@ -231,7 +231,7 @@ class RagServiceTest {
 
         // Create a new instance and verify it loads the persisted store
         RagService restored = service(
-                new RecordingChatLanguageModel("恢复后的回答。"),
+                new RecordingChatModel("恢复后的回答。"),
                 noOpStreamingModel(),
                 documentService,
                 new InMemoryEmbeddingStore<>()
@@ -246,7 +246,7 @@ class RagServiceTest {
 
     @Test
     void sessionMemoryIsBoundedByMaxSize() {
-        RecordingChatLanguageModel chatModel = new RecordingChatLanguageModel("回答。");
+        RecordingChatModel chatModel = new RecordingChatModel("回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
         // Set a tiny cache for testing
@@ -266,14 +266,14 @@ class RagServiceTest {
         assertThat(ragService.sessionMemoryCount()).isLessThanOrEqualTo(3);
     }
 
-    private RagService service(ChatLanguageModel chatModel,
-                               StreamingChatLanguageModel streamingModel,
+    private RagService service(ChatModel chatModel,
+                               StreamingChatModel streamingModel,
                                DocumentService documentService) {
         return service(chatModel, streamingModel, documentService, new InMemoryEmbeddingStore<>());
     }
 
-    private RagService service(ChatLanguageModel chatModel,
-                               StreamingChatLanguageModel streamingModel,
+    private RagService service(ChatModel chatModel,
+                               StreamingChatModel streamingModel,
                                DocumentService documentService,
                                InMemoryEmbeddingStore<TextSegment> embeddingStore) {
         PromptTemplateService promptTemplateService = new PromptTemplateService();
@@ -298,39 +298,56 @@ class RagServiceTest {
 
     private Metadata metadata(String chunkId) {
         Metadata metadata = new Metadata();
-        metadata.add("knowledge_base", "HR");
-        metadata.add(Document.FILE_NAME, "hr-policy.txt");
-        metadata.add("chunk_id", chunkId);
+        metadata.put("knowledge_base", "HR");
+        metadata.put(Document.FILE_NAME, "hr-policy.txt");
+        metadata.put("chunk_id", chunkId);
         return metadata;
     }
 
-    private StreamingChatLanguageModel noOpStreamingModel() {
-        return (messages, handler) -> {
+    private StreamingChatModel noOpStreamingModel() {
+        return new StreamingChatModel() {
+            @Override
+            public void chat(java.util.List<ChatMessage> messages,
+                             dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {}
         };
     }
 
-    private StreamingChatLanguageModel failingStreamingModel() {
-        return (messages, handler) -> handler.onError(new RuntimeException("stream failed"));
+    private StreamingChatModel failingStreamingModel() {
+        return new StreamingChatModel() {
+            @Override
+            public void chat(java.util.List<ChatMessage> messages,
+                             dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {
+                handler.onError(new RuntimeException("stream failed"));
+            }
+        };
     }
 
-    private StreamingChatLanguageModel emptyStreamingModel() {
-        return (messages, handler) -> handler.onComplete(null);
+    private StreamingChatModel emptyStreamingModel() {
+        return new StreamingChatModel() {
+            @Override
+            public void chat(java.util.List<ChatMessage> messages,
+                             dev.langchain4j.model.chat.response.StreamingChatResponseHandler handler) {
+                handler.onCompleteResponse(null);
+            }
+        };
     }
 
-    private static class RecordingChatLanguageModel implements ChatLanguageModel {
+    private static class RecordingChatModel implements ChatModel {
         private final String responseText;
         private int calls;
         private List<ChatMessage> lastMessages = Collections.emptyList();
 
-        private RecordingChatLanguageModel(String responseText) {
+        private RecordingChatModel(String responseText) {
             this.responseText = responseText;
         }
 
         @Override
-        public Response<AiMessage> generate(List<ChatMessage> messages) {
+        public dev.langchain4j.model.chat.response.ChatResponse chat(java.util.List<ChatMessage> messages) {
             calls++;
             lastMessages = messages;
-            return Response.from(AiMessage.from(responseText));
+            return dev.langchain4j.model.chat.response.ChatResponse.builder()
+                    .aiMessage(AiMessage.from(responseText))
+                    .build();
         }
     }
 

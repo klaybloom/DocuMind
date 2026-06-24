@@ -24,11 +24,12 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.StreamingResponseHandler;
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.output.Response;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
@@ -72,8 +73,8 @@ public class RagService {
     private static final int DEFAULT_MAX_SESSIONS = 1000;
     private static final long DEFAULT_SESSION_TTL_MINUTES = 60;
 
-    private final ChatLanguageModel chatLanguageModel;
-    private final StreamingChatLanguageModel streamingChatLanguageModel;
+    private final ChatModel chatModel;
+    private final StreamingChatModel streamingChatModel;
     private final EmbeddingModel embeddingModel;
     private final DocumentService documentService;
     private final PromptTemplateService promptTemplateService;
@@ -114,14 +115,14 @@ public class RagService {
     private Cache<String, MessageWindowChatMemory> sessionMemories = buildSessionCache(
             DEFAULT_MAX_SESSIONS, DEFAULT_SESSION_TTL_MINUTES);
 
-    public RagService(ChatLanguageModel chatLanguageModel,
-                      StreamingChatLanguageModel streamingChatLanguageModel,
+    public RagService(ChatModel chatModel,
+                      StreamingChatModel streamingChatModel,
                       EmbeddingModel embeddingModel,
                       EmbeddingStore<TextSegment> embeddingStore,
                       DocumentService documentService,
                       PromptTemplateService promptTemplateService) {
-        this.chatLanguageModel = chatLanguageModel;
-        this.streamingChatLanguageModel = streamingChatLanguageModel;
+        this.chatModel = chatModel;
+        this.streamingChatModel = streamingChatModel;
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.documentService = documentService;
@@ -175,8 +176,8 @@ public class RagService {
                 try {
                     documentService.markIndexing(fileInfo);
                     Document document = loadDocument(fileInfo);
-                    document.metadata().add(Document.FILE_NAME, fileInfo.getFileName());
-                    document.metadata().add(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
+                    document.metadata().put(Document.FILE_NAME, fileInfo.getFileName());
+                    document.metadata().put(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
 
                     List<TextSegment> segments = enrichSegments(fileInfo, splitter.split(document));
                     if (segments.isEmpty()) {
@@ -228,8 +229,8 @@ public class RagService {
             // Re-parse and re-chunk
             DocumentSplitter splitter = DocumentSplitters.recursive(validChunkSize(), validChunkOverlap());
             Document document = loadDocument(fileInfo);
-            document.metadata().add(Document.FILE_NAME, fileInfo.getFileName());
-            document.metadata().add(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
+            document.metadata().put(Document.FILE_NAME, fileInfo.getFileName());
+            document.metadata().put(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
 
             List<TextSegment> newSegments = enrichSegments(fileInfo, splitter.split(document));
             if (newSegments.isEmpty()) {
@@ -241,7 +242,7 @@ public class RagService {
 
             // Remove old chunks for this file and add new ones
             List<TextSegment> remainingSegments = indexedSegments.stream()
-                    .filter(s -> !firstNonBlank(s.metadata(CHUNK_ID), "").startsWith(chunkPrefix))
+                    .filter(s -> !firstNonBlank(s.metadata().getString(CHUNK_ID), "").startsWith(chunkPrefix))
                     .toList();
 
             List<TextSegment> allSegments = new ArrayList<>(remainingSegments);
@@ -275,7 +276,7 @@ public class RagService {
         String chunkPrefix = kb + "/" + sanitizedFilename + "#";
 
         List<TextSegment> remainingSegments = indexedSegments.stream()
-                .filter(s -> !firstNonBlank(s.metadata(CHUNK_ID), "").startsWith(chunkPrefix))
+                .filter(s -> !firstNonBlank(s.metadata().getString(CHUNK_ID), "").startsWith(chunkPrefix))
                 .toList();
 
         rebuildStoreFromSegments(remainingSegments);
@@ -330,7 +331,7 @@ public class RagService {
             }
             MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
             List<ChatMessage> messages = buildMessages(memory, question, sources);
-            String response = chatLanguageModel.generate(messages).content().text();
+            String response = chatModel.chat(messages).aiMessage().text();
 
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));
@@ -390,15 +391,15 @@ public class RagService {
             List<ChatMessage> messages = buildMessages(memory, question, sources);
             StringBuilder generated = new StringBuilder();
 
-            streamingChatLanguageModel.generate(messages, new StreamingResponseHandler<AiMessage>() {
+            streamingChatModel.chat(messages, new StreamingChatResponseHandler() {
                 @Override
-                public void onNext(String token) {
+                public void onPartialResponse(String token) {
                     generated.append(token);
                     onNext.accept(token);
                 }
 
                 @Override
-                public void onComplete(Response<AiMessage> response) {
+                public void onCompleteResponse(ChatResponse response) {
                     if (generated.length() == 0) {
                         handleEmptyStreamingResponse(question, kb, sources, messages, memory, onNext, onSources, onComplete, onError);
                         return;
@@ -452,9 +453,9 @@ public class RagService {
         for (int i = 0; i < segments.size(); i++) {
             TextSegment segment = segments.get(i);
             Metadata metadata = segment.metadata() == null ? new Metadata() : segment.metadata().copy();
-            metadata.add(Document.FILE_NAME, fileInfo.getFileName());
-            metadata.add(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
-            metadata.add(CHUNK_ID, fileInfo.getKnowledgeBase() + "/" + fileInfo.getFileName() + "#" + (i + 1));
+            metadata.put(Document.FILE_NAME, fileInfo.getFileName());
+            metadata.put(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
+            metadata.put(CHUNK_ID, fileInfo.getKnowledgeBase() + "/" + fileInfo.getFileName() + "#" + (i + 1));
             enriched.add(TextSegment.from(segment.text(), metadata));
         }
         return enriched;
@@ -464,30 +465,32 @@ public class RagService {
 
     private RetrievalResult retrieveSources(String question, String knowledgeBase, boolean debug) {
         Embedding queryEmbedding = embeddingModel.embed(question).content();
-        List<EmbeddingMatch<TextSegment>> matches = embeddingStore.findRelevant(
-                queryEmbedding,
-                validRetrievalPoolSize(),
-                validMinScore()
-        );
+        List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(
+                EmbeddingSearchRequest.builder()
+                        .queryEmbedding(queryEmbedding)
+                        .maxResults(validRetrievalPoolSize())
+                        .minScore(validMinScore())
+                        .build()
+        ).matches();
         Map<String, RetrievedCandidate> candidates = new LinkedHashMap<>();
         Map<String, String> matchTypes = new LinkedHashMap<>();
 
         // Track vector matches
         for (EmbeddingMatch<TextSegment> match : matches) {
             TextSegment segment = match.embedded();
-            String segmentKnowledgeBase = firstNonBlank(segment.metadata(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
+            String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
             if (!matchesKnowledgeBase(knowledgeBase, segmentKnowledgeBase)) {
                 continue;
             }
 
-            String chunkId = firstNonBlank(segment.metadata(CHUNK_ID), String.valueOf(segment.hashCode()));
+            String chunkId = firstNonBlank(segment.metadata().getString(CHUNK_ID), String.valueOf(segment.hashCode()));
             matchTypes.put(chunkId, "VECTOR");
             addCandidate(candidates, segment, match.score());
         }
 
         // Track keyword matches
         for (RetrievedCandidate candidate : keywordCandidates(question, knowledgeBase)) {
-            String chunkId = firstNonBlank(candidate.segment().metadata(CHUNK_ID), String.valueOf(candidate.segment().hashCode()));
+            String chunkId = firstNonBlank(candidate.segment().metadata().getString(CHUNK_ID), String.valueOf(candidate.segment().hashCode()));
             if (!matchTypes.containsKey(chunkId)) {
                 matchTypes.put(chunkId, "KEYWORD");
             } else {
@@ -505,7 +508,7 @@ public class RagService {
         int maxResults = validMaxResults();
         Set<String> usedChunkIds = new HashSet<>();
         for (int i = 0; i < Math.min(maxResults, sortedCandidates.size()); i++) {
-            String chunkId = firstNonBlank(sortedCandidates.get(i).segment().metadata(CHUNK_ID), "unknown");
+            String chunkId = firstNonBlank(sortedCandidates.get(i).segment().metadata().getString(CHUNK_ID), "unknown");
             usedChunkIds.add(chunkId);
         }
 
@@ -514,16 +517,16 @@ public class RagService {
 
         for (RetrievedCandidate candidate : sortedCandidates) {
             TextSegment segment = candidate.segment();
-            String segmentKnowledgeBase = firstNonBlank(segment.metadata(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
-            String chunkId = firstNonBlank(segment.metadata(CHUNK_ID), "unknown");
+            String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
+            String chunkId = firstNonBlank(segment.metadata().getString(CHUNK_ID), "unknown");
             boolean used = usedChunkIds.contains(chunkId);
 
             if (used) {
                 sources.add(new SourceReference(
                         sources.size() + 1,
                         segmentKnowledgeBase,
-                        firstNonBlank(segment.metadata(Document.FILE_NAME), "未知文件"),
-                        firstNonBlank(segment.metadata(PAGE), segment.metadata("page_number")),
+                        firstNonBlank(segment.metadata().getString(Document.FILE_NAME), "未知文件"),
+                        firstNonBlank(segment.metadata().getString(PAGE), segment.metadata().getString("page_number")),
                         chunkId,
                         segment.text(),
                         candidate.score()
@@ -534,7 +537,7 @@ public class RagService {
                 String matchType = matchTypes.getOrDefault(chunkId, "VECTOR");
                 allDebugCandidates.add(new RetrievalDebugInfo.CandidateDebug(
                         chunkId,
-                        firstNonBlank(segment.metadata(Document.FILE_NAME), "未知文件"),
+                        firstNonBlank(segment.metadata().getString(Document.FILE_NAME), "未知文件"),
                         segmentKnowledgeBase,
                         segment.text(),
                         candidate.score(),
@@ -627,7 +630,7 @@ public class RagService {
                                               Consumer<Throwable> onError) {
         try {
             logger.warn("Streaming model completed without tokens; using non-streaming response, sourceCount={}", sources.size());
-            String response = chatLanguageModel.generate(messages).content().text();
+            String response = chatModel.chat(messages).aiMessage().text();
             if (!sources.isEmpty()) {
                 onSources.accept(sources);
             }
@@ -665,7 +668,7 @@ public class RagService {
             logger.warn("Streaming model failed before returning tokens; using non-streaming response, sourceCount={}, error={}",
                     sources.size(),
                     error.toString());
-            String response = chatLanguageModel.generate(messages).content().text();
+            String response = chatModel.chat(messages).aiMessage().text();
             if (!sources.isEmpty()) {
                 onSources.accept(sources);
             }
@@ -725,7 +728,7 @@ public class RagService {
 
         List<RetrievedCandidate> candidates = new ArrayList<>();
         for (TextSegment segment : indexedSegments) {
-            String segmentKnowledgeBase = firstNonBlank(segment.metadata(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
+            String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
             if (!matchesKnowledgeBase(knowledgeBase, segmentKnowledgeBase)) {
                 continue;
             }
@@ -828,7 +831,7 @@ public class RagService {
     }
 
     private void addCandidate(Map<String, RetrievedCandidate> candidates, TextSegment segment, double score) {
-        String chunkId = firstNonBlank(segment.metadata(CHUNK_ID), String.valueOf(segment.hashCode()));
+        String chunkId = firstNonBlank(segment.metadata().getString(CHUNK_ID), String.valueOf(segment.hashCode()));
         RetrievedCandidate existing = candidates.get(chunkId);
         if (existing == null || score > existing.score()) {
             candidates.put(chunkId, new RetrievedCandidate(segment, score));
