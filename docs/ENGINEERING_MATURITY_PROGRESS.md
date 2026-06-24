@@ -22,7 +22,7 @@
 |---|------|------|------|----------|------|
 | 5 | 单文档重新索引 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `app.js`, `style.css`, `FileControllerHttpTest.java` | POST /api/files/{filename}/reindex |
 | 6 | 删除文档同步清理向量 | Phase 2 | ✅ 完成 | `RagService.java`, `FileController.java`, `FileControllerHttpTest.java` | 精准移除 chunk，替代全量 refreshIndex |
-| 7 | Prompt 模板外置 | Phase 2 | ⏳ 待开始 | `PromptTemplateService.java`, `prompts/*.md`, `RagService.java`, `application.yml` | 可配置的提示词模板 |
+| 7 | Prompt 模板外置 | Phase 2 | ✅ 完成 | `PromptTemplateService.java`, `prompts/*.md`, `RagService.java`, `RagServiceTest.java`, `HealthServiceTest.java`, `ChatControllerHttpTest.java`, `FileControllerHttpTest.java` | 可配置的提示词模板 |
 | 8 | 问答测试集 | Phase 2 | ⏳ 待开始 | `docs/test-set.json`, `RagEvaluationRunner.java`, `RAG_EVALUATION.md` | 30 题结构化评测集 |
 
 ## Phase 3：后续增强（暂不实施）
