@@ -85,12 +85,14 @@
 - `PromptTemplateService.java`: 新增模板加载服务，支持 classpath 和配置覆盖
 - `prompts/system-document.md`: 文档问答系统提示词
 - `prompts/system-general.md`: 无命中时通用问答系统提示词
-- `prompts/user-with-sources.md`: 带资料片段的用户提示词模板
+- `prompts/user-with-sources.md`: 带资料片段的用户提示词模板（支持 `{{question}}` 和 `{{sources}}` 占位符）
 - `RagService.java`: 注入 PromptTemplateService，替换内联 prompt 方法
 - 更新所有测试文件的 RagService 构造函数调用
 
 **2.4 问答测试集**
 - `docs/test-set.json`: 30 个结构化问题，覆盖 6 类场景
+  - 精确事实 (5)、术语查询 (5)、多段总结 (5)
+  - 跨文件对比 (5)、无命中降级 (5)、知识隔离 (5)
 - `docs/RAG_EVALUATION.md`: 链接到测试集，新增分类表格说明
 
 ## 测试状态
