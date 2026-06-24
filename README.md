@@ -32,8 +32,8 @@ graph TD
 **组件说明**：
 - **前端**：原生 HTML5/JS/CSS 单页应用，通过 SSE 实现流式回答展示
 - **RagService**：混合检索（向量相似度 + 关键词匹配）、会话记忆、分块策略
-- **InMemoryEmbeddingStore**：进程内向量库，服务重启后从文件重建索引
-- **DocumentService**：文件系统存储 + `.documind-files.json` 清单管理
+- **InMemoryEmbeddingStore**：进程内向量库，定期序列化到 `.documind-vectors.json`
+- **DocumentService**：文件系统存储 + H2/JPA 元数据管理
 
 ## 🔄 RAG 工作流程
 
@@ -228,10 +228,10 @@ DocuMind/
 ## 知识库和索引
 
 - 默认知识库使用 `documents/` 根目录，新增知识库使用 `documents/<知识库名>/` 子目录。
-- 每个知识库目录会生成 `.documind-files.json`，记录文件大小、上传时间、索引状态、片段数和错误信息。
-- 当前知识库未命中的问题会写入 `.documind-gaps.json`，管理员可用于补充 FAQ 或制度文档。
+- 文档元数据、索引状态、知识缺口和审计记录保存在 H2 文件数据库中。
+- 旧版本的 `.documind-files.json`、`.documind-gaps.json` 和 `.documind-audit.log` 会在启动时迁移。
 - 文档过期提示按 `DOCUMIND_STALE_DAYS` 判断；默认 180 天。
-- 当前向量库仍是进程内内存实现；服务重启后会重新读取文件并重建索引。
+- 向量库运行时仍使用内存实现，同时会持久化到 `.documind-vectors.json`；服务重启后优先加载快照，并按文件变化增量刷新。
 - 运行过程中刷新索引会复用已成功索引且未变化文件的解析和嵌入结果，只处理新增或更新文件。
 - RAG 检索参数可通过 `DOCUMIND_RAG_MAX_RESULTS`、`DOCUMIND_RAG_MIN_SCORE`、`DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO`、`DOCUMIND_RAG_RETRIEVAL_POOL_SIZE`、`DOCUMIND_RAG_CHUNK_SIZE`、`DOCUMIND_RAG_CHUNK_OVERLAP` 调整。
 - 真实答案质量建议按 [RAG_EVALUATION.md](./docs/RAG_EVALUATION.md) 的问题集定期检查。
@@ -335,6 +335,9 @@ mvn test
 | `DEEPSEEK_TIMEOUT_SECONDS` | `60` | API 调用超时（秒） |
 | `DOCUMIND_MAX_FILE_SIZE` | `50MB` | 单文件大小上限 |
 | `DOCUMIND_STALE_DAYS` | `180` | 文档过期天数阈值 |
+| `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
+| `DOCUMIND_DB_USERNAME` | `sa` | H2 数据库用户名 |
+| `DOCUMIND_DB_PASSWORD` | - | H2 数据库密码 |
 | `DOCUMIND_RAG_MAX_RESULTS` | `3` | 检索返回的最大片段数 |
 | `DOCUMIND_RAG_MIN_SCORE` | `0.65` | 向量检索最低相似度阈值 |
 | `DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO` | `0.25` | 关键词匹配最低命中率 |

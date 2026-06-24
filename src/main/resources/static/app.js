@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const AUTH_KEY = 'documind_auth';
     const DEBUG_KEY = 'documind_debug_mode';
     const DEFAULT_KNOWLEDGE_BASE = 'default';
+    let debugMode = localStorage.getItem(DEBUG_KEY) === 'true';
 
     // Lucide icon helper
     function refreshIcons() {
@@ -201,8 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let conversations = loadConversations();
     let currentId = null;
     let currentKnowledgeBase = localStorage.getItem(KNOWLEDGE_BASE_KEY) || DEFAULT_KNOWLEDGE_BASE;
-    let debugMode = localStorage.getItem('documind_debug_mode') === 'true';
-
     function loadConversations() {
         try {
             return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];

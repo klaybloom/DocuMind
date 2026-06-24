@@ -1,13 +1,13 @@
 # DocuMind 部署手册
 
-这份手册面向内部服务器部署。当前版本仍使用进程内向量库，服务重启后会从 `documents/` 目录重新解析并构建索引；本文不包含 Docker Compose 或持久向量库部署。
+这份手册面向内部服务器部署。当前版本会把文档、向量索引和 H2 数据库文件保存在持久化目录中；本文不包含 Docker Compose 或外置向量库部署。
 
 ## 1. 运行环境
 
 - JDK 17
 - Maven 3.8+
 - 可访问 DeepSeek API 的网络环境
-- 一个可持久保存的文档目录，例如 `/opt/documind/documents`
+- 一个可持久保存的数据目录，例如 `/opt/documind/documents`
 - 一个低权限系统用户，例如 `documind`
 
 检查 Java 版本：
@@ -38,6 +38,9 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 | `DOCUMIND_STALE_DAYS` | 否 | `180` | 文档过期提醒天数 |
 | `DOCUMIND_MAX_FILE_SIZE` | 否 | `50MB` | 单个上传文件大小上限，同时用于 Spring multipart 和业务校验 |
 | `DOCUMIND_AUDIT_MAX_EVENTS` | 否 | `10000` | 审计日志保留条数，`0` 表示不由应用裁剪 |
+| `DOCUMIND_DB_PATH` | 否 | `/opt/documind/documents/.documind-db` | H2 文件数据库路径；生产部署必须放在持久化目录 |
+| `DOCUMIND_DB_USERNAME` | 否 | `sa` | H2 数据库用户名 |
+| `DOCUMIND_DB_PASSWORD` | 否 | - | H2 数据库密码 |
 | `DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE` | 否 | `30` | 每个账号每分钟最多问答次数，`0` 表示关闭 |
 | `DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS` | 否 | `120` | 流式问答 SSE 连接超时，应用内部最低接受 `30` |
 | `DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE` | 否 | `4` | 流式问答线程池常驻线程数 |
@@ -54,7 +57,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 | `DEEPSEEK_MODEL` | 否 | `deepseek-v4-flash` | 使用的 DeepSeek 模型 |
 | `DEEPSEEK_TIMEOUT_SECONDS` | 否 | `60` | DeepSeek 调用超时，应用内部最低接受 `5` |
 
-`application.yml` 中没有可直接用于生产的默认 API Key 或默认密码；缺少 `DEEPSEEK_API_KEY` 或 `DOCUMIND_ADMIN_PASSWORD` 时应用会启动失败。
+`application.yml` 中没有可直接用于生产的默认 API Key 或默认密码；缺少 `DEEPSEEK_API_KEY` 或 `DOCUMIND_ADMIN_PASSWORD` 时应用会启动失败。生产环境建议显式设置 `DOCUMIND_DB_PATH`，避免数据库文件落在临时工作目录。
 
 ## 3. 构建
 
@@ -89,6 +92,7 @@ export DOCUMIND_ADMIN_PASSWORD=change_this_password
 export DOCUMIND_MIN_PASSWORD_LENGTH=12
 export DOCUMIND_STALE_DAYS=180
 export DOCUMIND_AUDIT_MAX_EVENTS=10000
+export DOCUMIND_DB_PATH=/opt/documind/documents/.documind-db
 export DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE=30
 export DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS=120
 export DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE=4
@@ -180,11 +184,11 @@ documents/
 目录里包含：
 
 - 原始文档文件
-- `.documind-files.json`：文件状态、上传人、负责人、索引状态
-- `.documind-gaps.json`：知识缺口
-- `.documind-audit.log`：审计记录
+- `.documind-vectors.json`：向量索引快照
+- `.documind-index-cache.json`：索引缓存
+- `.documind-db.*`：H2 数据库文件，包含文件状态、知识缺口、审计和账号数据
 
-当前向量索引不需要备份，因为它在进程内，重启后会从文档重新构建。
+旧版本的 `.documind-files.json`、`.documind-gaps.json`、`.documind-audit.log` 会在首次启动时迁移到数据库；迁移后仍建议随目录一起备份。
 
 建议：
 
@@ -199,7 +203,7 @@ documents/
 2. 备份 `documents/`。
 3. 停止旧进程。
 4. 替换 JAR。
-5. 使用相同环境变量和 `app.documents-path` 启动。
+5. 使用相同环境变量、`app.documents-path` 和 `DOCUMIND_DB_PATH` 启动。
 6. 调用 `/api/health/readiness` 检查状态。
 7. 用固定问题集执行一次 RAG 质量检查，参考 [RAG_EVALUATION.md](./RAG_EVALUATION.md)。
 

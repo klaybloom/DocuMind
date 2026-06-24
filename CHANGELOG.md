@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session memory bounded by Caffeine cache (`maximumSize` + `expireAfterAccess`)
 - Configurable session limits: `app.chat.session.max`, `app.chat.session.ttl-minutes`
 - `CHANGELOG.md` for release tracking
-- GitHub Actions release workflow (tag → build JAR → GitHub Release)
+- GitHub Actions release workflow (tag → build JAR → push GHCR image → GitHub Release)
+- File-backed H2 database for document metadata, knowledge gaps, audit records, and user accounts
 
 ### Changed
 - Session memory storage changed from `ConcurrentHashMap` to Caffeine `Cache` (default: 1000 max sessions, 60 min TTL)
