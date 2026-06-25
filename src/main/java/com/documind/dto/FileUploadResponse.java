@@ -1,13 +1,15 @@
 package com.documind.dto;
 
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
 public class FileUploadResponse {
 
     private String message;
     private String filename;
     private String error;
-
-    public FileUploadResponse() {
-    }
 
     public static FileUploadResponse success(String message, String filename) {
         FileUploadResponse response = new FileUploadResponse();
@@ -20,29 +22,5 @@ public class FileUploadResponse {
         FileUploadResponse response = new FileUploadResponse();
         response.setError(error);
         return response;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
     }
 }

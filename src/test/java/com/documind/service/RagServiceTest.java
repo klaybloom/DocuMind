@@ -3,6 +3,7 @@ package com.documind.service;
 import com.documind.dto.DocumentFileInfo;
 import com.documind.dto.KnowledgeGapInfo;
 import com.documind.dto.RagAnswer;
+import com.documind.dto.RetrievalDebugInfo;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.data.document.Document;
@@ -88,6 +89,35 @@ class RagServiceTest {
     }
 
     @Test
+    void askStreamEmitsDebugInfoWhenFallbackModelIsUsed() {
+        RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。非流式通用回答。");
+        TestDocumentService documentService = new TestDocumentService();
+        RagService ragService = service(chatModel, failingStreamingModel(), documentService);
+        List<String> tokens = new ArrayList<>();
+        List<RetrievalDebugInfo> debugEvents = new ArrayList<>();
+        AtomicBoolean completed = new AtomicBoolean(false);
+        List<Throwable> errors = new ArrayList<>();
+
+        ragService.askStream(
+                "公司没有资料的问题",
+                "session-debug",
+                "Legal",
+                tokens::add,
+                sources -> {},
+                debugEvents::add,
+                () -> completed.set(true),
+                errors::add,
+                true
+        );
+
+        assertThat(errors).isEmpty();
+        assertThat(completed).isTrue();
+        assertThat(String.join("", tokens)).contains("非流式通用回答");
+        assertThat(debugEvents).hasSize(1);
+        assertThat(debugEvents.get(0).getKnowledgeBase()).isEqualTo("Legal");
+    }
+
+    @Test
     void askStreamFallsBackToGeneralModelWhenStreamingCompletesWithoutTokens() {
         RecordingChatModel chatModel = new RecordingChatModel("文档中未找到相关信息。空流后通用回答。");
         TestDocumentService documentService = new TestDocumentService();
@@ -161,6 +191,34 @@ class RagServiceTest {
 
         assertThat(answer.isFromDocuments()).isTrue();
         assertThat(answer.getSources()).hasSize(2);
+    }
+
+    @Test
+    void askCanRetrieveAcrossMultipleKnowledgeBases() {
+        RecordingChatModel chatModel = new RecordingChatModel("基于多个知识库回答。");
+        TestDocumentService documentService = new TestDocumentService();
+        InMemoryEmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
+        List<TextSegment> segments = List.of(
+                TextSegment.from("HR 制度要求员工九点前到岗。", metadata("HR/hr-policy.txt#1")),
+                TextSegment.from("Finance 制度要求报销提交正规发票。", metadata("Finance/finance-policy.txt#1"))
+        );
+        embeddingStore.addAll(
+                List.of(
+                        Embedding.from(new float[]{1.0f}),
+                        Embedding.from(new float[]{1.0f})
+                ),
+                segments
+        );
+        RagService ragService = service(chatModel, noOpStreamingModel(), documentService, embeddingStore);
+        ReflectionTestUtils.setField(ragService, "indexedSegments", segments);
+
+        RagAnswer answer = ragService.ask("制度要求是什么？", "session-multi-kb", "HR,Finance", true);
+
+        assertThat(answer.isFromDocuments()).isTrue();
+        assertThat(answer.getSources())
+                .extracting("knowledgeBase")
+                .contains("HR", "Finance");
+        assertThat(answer.getDebugInfo().getKnowledgeBase()).isEqualTo("HR,Finance");
     }
 
     @Test
@@ -347,8 +405,11 @@ class RagServiceTest {
 
     private Metadata metadata(String chunkId) {
         Metadata metadata = new Metadata();
-        metadata.put("knowledge_base", "HR");
-        metadata.put(Document.FILE_NAME, "hr-policy.txt");
+        String[] parts = chunkId.split("/", 2);
+        String knowledgeBase = parts.length > 1 ? parts[0] : "HR";
+        String fileName = parts.length > 1 ? parts[1].split("#", 2)[0] : "hr-policy.txt";
+        metadata.put("knowledge_base", knowledgeBase);
+        metadata.put(Document.FILE_NAME, fileName);
         metadata.put("chunk_id", chunkId);
         return metadata;
     }

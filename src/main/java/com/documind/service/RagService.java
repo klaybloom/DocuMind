@@ -43,6 +43,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -321,11 +322,12 @@ public class RagService {
                 return new RagAnswer("助手尚未初始化，请稍后再试。", Collections.emptyList(), false);
             }
 
-            String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
-            RetrievalResult result = retrieveSources(question, kb, debug);
+            List<String> selectedKnowledgeBases = normalizeKnowledgeBases(knowledgeBase);
+            String kb = knowledgeBaseKey(selectedKnowledgeBases);
+            RetrievalResult result = retrieveSources(question, selectedKnowledgeBases, kb, debug);
             List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
-                documentService.recordKnowledgeGap(kb, question, sessionId);
+                selectedKnowledgeBases.forEach(selected -> documentService.recordKnowledgeGap(selected, question, sessionId));
             }
             MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
             List<ChatMessage> messages = buildMessages(memory, question, sources);
@@ -334,7 +336,7 @@ public class RagService {
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));
 
-            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(kb) : response + formatSources(sources);
+            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(selectedKnowledgeBases) : response + formatSources(sources);
             RagAnswer ragAnswer = new RagAnswer(answer, sources, !sources.isEmpty());
             ragAnswer.setDebugInfo(result.debugInfo());
             return ragAnswer;
@@ -379,11 +381,12 @@ public class RagService {
                 return;
             }
 
-            String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
-            RetrievalResult result = retrieveSources(question, kb, debug);
+            List<String> selectedKnowledgeBases = normalizeKnowledgeBases(knowledgeBase);
+            String kb = knowledgeBaseKey(selectedKnowledgeBases);
+            RetrievalResult result = retrieveSources(question, selectedKnowledgeBases, kb, debug);
             List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
-                documentService.recordKnowledgeGap(kb, question, sessionId);
+                selectedKnowledgeBases.forEach(selected -> documentService.recordKnowledgeGap(selected, question, sessionId));
             }
             MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
             List<ChatMessage> messages = buildMessages(memory, question, sources);
@@ -399,13 +402,14 @@ public class RagService {
                 @Override
                 public void onCompleteResponse(ChatResponse response) {
                     if (generated.length() == 0) {
-                        handleEmptyStreamingResponse(question, kb, sources, messages, memory, onNext, onSources, onComplete, onError);
+                        handleEmptyStreamingResponse(question, selectedKnowledgeBases, sources, result.debugInfo(),
+                                messages, memory, onNext, onSources, onDebug, onComplete, onError);
                         return;
                     }
                     if (!sources.isEmpty()) {
                         onSources.accept(sources);
                     } else {
-                        onNext.accept(formatOwnerSuggestion(kb));
+                        onNext.accept(formatOwnerSuggestion(selectedKnowledgeBases));
                     }
                     if (onDebug != null && result.debugInfo() != null) {
                         onDebug.accept(result.debugInfo());
@@ -417,7 +421,8 @@ public class RagService {
 
                 @Override
                 public void onError(Throwable error) {
-                    handleStreamingError(error, question, kb, sources, messages, memory, generated, onNext, onSources, onComplete, onError);
+                    handleStreamingError(error, question, selectedKnowledgeBases, sources, result.debugInfo(),
+                            messages, memory, generated, onNext, onSources, onDebug, onComplete, onError);
                 }
             });
         } catch (Exception e) {
@@ -461,7 +466,7 @@ public class RagService {
 
     private record RetrievalResult(List<SourceReference> sources, RetrievalDebugInfo debugInfo) {}
 
-    private RetrievalResult retrieveSources(String question, String knowledgeBase, boolean debug) {
+    private RetrievalResult retrieveSources(String question, List<String> knowledgeBases, String knowledgeBaseLabel, boolean debug) {
         Embedding queryEmbedding = embeddingModel.embed(question).content();
         List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(
                 EmbeddingSearchRequest.builder()
@@ -477,7 +482,7 @@ public class RagService {
         for (EmbeddingMatch<TextSegment> match : matches) {
             TextSegment segment = match.embedded();
             String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
-            if (!matchesKnowledgeBase(knowledgeBase, segmentKnowledgeBase)) {
+            if (!matchesKnowledgeBase(knowledgeBases, segmentKnowledgeBase)) {
                 continue;
             }
 
@@ -487,7 +492,7 @@ public class RagService {
         }
 
         // Track keyword matches
-        for (RetrievedCandidate candidate : keywordCandidates(question, knowledgeBase)) {
+        for (RetrievedCandidate candidate : keywordCandidates(question, knowledgeBases)) {
             String chunkId = firstNonBlank(candidate.segment().metadata().getString(CHUNK_ID), String.valueOf(candidate.segment().hashCode()));
             if (!matchTypes.containsKey(chunkId)) {
                 matchTypes.put(chunkId, "KEYWORD");
@@ -547,7 +552,7 @@ public class RagService {
 
         RetrievalDebugInfo debugInfo = null;
         if (debug) {
-            debugInfo = new RetrievalDebugInfo(allDebugCandidates, sources.size(), knowledgeBase);
+            debugInfo = new RetrievalDebugInfo(allDebugCandidates, sources.size(), knowledgeBaseLabel);
         }
 
         return new RetrievalResult(sources, debugInfo);
@@ -609,8 +614,11 @@ public class RagService {
         return builder.toString();
     }
 
-    private String formatOwnerSuggestion(String knowledgeBase) {
-        List<String> owners = documentService.suggestOwners(knowledgeBase);
+    private String formatOwnerSuggestion(List<String> knowledgeBases) {
+        List<String> owners = knowledgeBases.stream()
+                .flatMap(knowledgeBase -> documentService.suggestOwners(knowledgeBase).stream())
+                .distinct()
+                .toList();
         if (owners.isEmpty()) {
             return "";
         }
@@ -618,12 +626,14 @@ public class RagService {
     }
 
     private void handleEmptyStreamingResponse(String question,
-                                              String knowledgeBase,
+                                              List<String> knowledgeBases,
                                               List<SourceReference> sources,
+                                              RetrievalDebugInfo debugInfo,
                                               List<ChatMessage> messages,
                                               MessageWindowChatMemory memory,
                                               Consumer<String> onNext,
                                               Consumer<List<SourceReference>> onSources,
+                                              Consumer<RetrievalDebugInfo> onDebug,
                                               Runnable onComplete,
                                               Consumer<Throwable> onError) {
         try {
@@ -632,7 +642,10 @@ public class RagService {
             if (!sources.isEmpty()) {
                 onSources.accept(sources);
             }
-            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response;
+            if (onDebug != null && debugInfo != null) {
+                onDebug.accept(debugInfo);
+            }
+            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBases) : response;
             onNext.accept(answer);
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));
@@ -645,18 +658,23 @@ public class RagService {
 
     private void handleStreamingError(Throwable error,
                                       String question,
-                                      String knowledgeBase,
+                                      List<String> knowledgeBases,
                                       List<SourceReference> sources,
+                                      RetrievalDebugInfo debugInfo,
                                       List<ChatMessage> messages,
                                       MessageWindowChatMemory memory,
                                       StringBuilder generated,
                                       Consumer<String> onNext,
                                       Consumer<List<SourceReference>> onSources,
+                                      Consumer<RetrievalDebugInfo> onDebug,
                                       Runnable onComplete,
                                       Consumer<Throwable> onError) {
         if (generated.length() > 0) {
             if (!sources.isEmpty()) {
                 onSources.accept(sources);
+            }
+            if (onDebug != null && debugInfo != null) {
+                onDebug.accept(debugInfo);
             }
             onError.accept(error);
             return;
@@ -670,7 +688,10 @@ public class RagService {
             if (!sources.isEmpty()) {
                 onSources.accept(sources);
             }
-            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBase) : response;
+            if (onDebug != null && debugInfo != null) {
+                onDebug.accept(debugInfo);
+            }
+            String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBases) : response;
             onNext.accept(answer);
             memory.add(UserMessage.from(question));
             memory.add(AiMessage.from(response));
@@ -718,7 +739,7 @@ public class RagService {
         return fileInfo.getSizeBytes() + ":" + firstNonBlank(fileInfo.getUploadedAt(), "");
     }
 
-    private List<RetrievedCandidate> keywordCandidates(String question, String knowledgeBase) {
+    private List<RetrievedCandidate> keywordCandidates(String question, List<String> knowledgeBases) {
         Set<String> queryTerms = keywordTerms(question);
         if (queryTerms.isEmpty()) {
             return Collections.emptyList();
@@ -727,7 +748,7 @@ public class RagService {
         List<RetrievedCandidate> candidates = new ArrayList<>();
         for (TextSegment segment : indexedSegments) {
             String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
-            if (!matchesKnowledgeBase(knowledgeBase, segmentKnowledgeBase)) {
+            if (!matchesKnowledgeBase(knowledgeBases, segmentKnowledgeBase)) {
                 continue;
             }
 
@@ -836,8 +857,25 @@ public class RagService {
         }
     }
 
-    private boolean matchesKnowledgeBase(String requested, String actual) {
-        return requested.equals(actual);
+    private boolean matchesKnowledgeBase(List<String> requested, String actual) {
+        return requested.contains(actual);
+    }
+
+    private List<String> normalizeKnowledgeBases(String knowledgeBaseSelection) {
+        if (isBlank(knowledgeBaseSelection)) {
+            return List.of(DocumentService.DEFAULT_KNOWLEDGE_BASE);
+        }
+        List<String> normalized = Arrays.stream(knowledgeBaseSelection.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(documentService::normalizeKnowledgeBase)
+                .distinct()
+                .toList();
+        return normalized.isEmpty() ? List.of(DocumentService.DEFAULT_KNOWLEDGE_BASE) : normalized;
+    }
+
+    private String knowledgeBaseKey(List<String> knowledgeBases) {
+        return String.join(",", knowledgeBases);
     }
 
     private String firstNonBlank(String first, String second) {

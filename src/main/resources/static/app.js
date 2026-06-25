@@ -1,3 +1,24 @@
+import {
+    createAuthFetch,
+    fetchCurrentUser,
+    streamChatResponse as streamChatResponseApi
+} from './api.js';
+import {
+    actionText,
+    escapeHtml,
+    formatDate,
+    formatDateTime,
+    formatResponse,
+    getFileColorClass,
+    getFileIconElement,
+    getFileTypeLabel,
+    knowledgeBaseLabel,
+    statusClass,
+    statusDetailText,
+    statusText,
+    truncateFilename
+} from './utils.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // 登录相关 DOM
     const loginScreen = document.getElementById('login-screen');
@@ -122,9 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function verifyAuth() {
         if (!authCredentials) return false;
         try {
-            const resp = await fetch('/api/auth/me', {
-                headers: { 'Authorization': 'Basic ' + authCredentials }
-            });
+            const resp = await fetchCurrentUser(authCredentials);
             if (resp.ok) {
                 const data = await resp.json();
                 showApp(data);
@@ -165,22 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loginUsername.focus();
     }
 
-    function authFetch(url, options = {}) {
-        if (!authCredentials) {
-            showLogin();
-            return Promise.reject(new Error('未登录'));
-        }
-        const headers = Object.assign({}, options.headers || {}, {
-            'Authorization': 'Basic ' + authCredentials
-        });
-        return fetch(url, Object.assign({}, options, { headers })).then(resp => {
-            if (resp.status === 401) {
-                showLogin('登录已过期，请重新登录');
-                return Promise.reject(new Error('认证已过期'));
-            }
-            return resp;
-        });
-    }
+    const authFetch = createAuthFetch(() => authCredentials, () => {
+        showLogin('登录已过期，请重新登录');
+    });
 
     // 登录表单提交
     loginForm.addEventListener('submit', async (e) => {
@@ -194,9 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const tempCreds = btoa(username + ':' + password);
         try {
-            const resp = await fetch('/api/auth/me', {
-                headers: { 'Authorization': 'Basic ' + tempCreds }
-            });
+            const resp = await fetchCurrentUser(tempCreds);
             if (resp.ok) {
                 const user = await resp.json();
                 saveAuth(username, password);
@@ -226,7 +230,42 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFiles = new Set();
     let conversations = loadConversations();
     let currentId = null;
-    let currentKnowledgeBase = localStorage.getItem(KNOWLEDGE_BASE_KEY) || DEFAULT_KNOWLEDGE_BASE;
+    let currentKnowledgeBases = loadSelectedKnowledgeBases();
+    let currentKnowledgeBase = currentKnowledgeBases[0] || DEFAULT_KNOWLEDGE_BASE;
+
+    function loadSelectedKnowledgeBases() {
+        const raw = localStorage.getItem(KNOWLEDGE_BASE_KEY);
+        if (!raw) return [DEFAULT_KNOWLEDGE_BASE];
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                const values = parsed.map(value => String(value || '').trim()).filter(Boolean);
+                return values.length > 0 ? values : [DEFAULT_KNOWLEDGE_BASE];
+            }
+        } catch (e) {
+            // 兼容旧版单值存储
+        }
+        const values = raw.split(',').map(value => value.trim()).filter(Boolean);
+        return values.length > 0 ? values : [DEFAULT_KNOWLEDGE_BASE];
+    }
+
+    function saveSelectedKnowledgeBases(values) {
+        const normalized = Array.from(new Set((values || [])
+            .map(value => String(value || '').trim())
+            .filter(Boolean)));
+        currentKnowledgeBases = normalized.length > 0 ? normalized : [DEFAULT_KNOWLEDGE_BASE];
+        currentKnowledgeBase = currentKnowledgeBases[0] || DEFAULT_KNOWLEDGE_BASE;
+        localStorage.setItem(KNOWLEDGE_BASE_KEY, JSON.stringify(currentKnowledgeBases));
+    }
+
+    function selectedKnowledgeBaseList() {
+        return currentKnowledgeBases.length > 0 ? currentKnowledgeBases : [DEFAULT_KNOWLEDGE_BASE];
+    }
+
+    function selectedKnowledgeBaseValue() {
+        return selectedKnowledgeBaseList().join(',');
+    }
+
     function loadConversations() {
         try {
             return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -243,9 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return conversations.find(c => c.id === id);
     }
 
-    function createConversation() {
+    function createConversation(id = 'conv-' + Date.now()) {
         const conv = {
-            id: 'conv-' + Date.now(),
+            id,
             title: '新对话',
             messages: [],
             updatedAt: Date.now()
@@ -262,11 +301,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return title.length > 24 ? title.slice(0, 24) + '…' : title;
     }
 
-    function persistMessage(role, text) {
-        let conv = getConversation(currentId);
-        if (!conv) conv = createConversation();
+    function persistMessage(conversationId, role, text, meta = {}) {
+        conversations = loadConversations();
+        let conv = getConversation(conversationId);
+        if (!conv) {
+            conv = {
+                id: conversationId || 'conv-' + Date.now(),
+                title: '新对话',
+                messages: [],
+                updatedAt: Date.now()
+            };
+            conversations.unshift(conv);
+        }
 
-        conv.messages.push({ role, text });
+        const message = { role, text };
+        if (Array.isArray(meta.sources) && meta.sources.length > 0) {
+            message.sources = meta.sources;
+        }
+        if (meta.debugInfo) {
+            message.debugInfo = meta.debugInfo;
+        }
+
+        conv.messages.push(message);
         if (role === 'user' && conv.messages.filter(m => m.role === 'user').length === 1) {
             conv.title = deriveTitle(text);
         }
@@ -331,7 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessages.classList.add('no-animate');
         conv.messages.forEach(m => {
             if (m.role === 'assistant') {
-                appendMessage('assistant', formatResponse(m.text), null, true);
+                const assistantRow = appendMessage('assistant', formatResponse(m.text), null, true);
+                if (Array.isArray(m.sources) && m.sources.length > 0) {
+                    renderSourceCards(assistantRow, m.sources);
+                }
+                if (m.debugInfo) {
+                    renderDebugPanel(assistantRow, m.debugInfo);
+                }
             } else {
                 appendMessage('user', m.text);
             }
@@ -358,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function clearServerSession(id) {
         if (!id) return;
         try {
-            await authFetch(`/api/chat/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            await authFetch(`/api/v1/chat/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
         } catch (error) {
             console.error('Error clearing server session:', error);
         }
@@ -423,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadKnowledgeBases() {
         try {
-            const response = await authFetch('/api/files/knowledge-bases');
+            const response = await authFetch('/api/v1/files/knowledge-bases');
             if (!response.ok) return;
 
             const knowledgeBases = await response.json();
@@ -435,31 +497,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderKnowledgeBaseOptions(knowledgeBases) {
-        if (!knowledgeBases.includes(currentKnowledgeBase)) {
-            currentKnowledgeBase = knowledgeBases[0] || DEFAULT_KNOWLEDGE_BASE;
-            localStorage.setItem(KNOWLEDGE_BASE_KEY, currentKnowledgeBase);
+        const available = knowledgeBases.length === 0 ? [DEFAULT_KNOWLEDGE_BASE] : knowledgeBases;
+        const validSelection = currentKnowledgeBases.filter(kb => available.includes(kb));
+        if (validSelection.length === 0) {
+            saveSelectedKnowledgeBases([available[0] || DEFAULT_KNOWLEDGE_BASE]);
+        } else if (validSelection.length !== currentKnowledgeBases.length) {
+            saveSelectedKnowledgeBases(validSelection);
         }
 
-        [knowledgeBaseSelect, documentKnowledgeBaseSelect].forEach(select => {
-            select.innerHTML = '';
-            knowledgeBases.forEach(kb => {
-                const option = document.createElement('option');
-                option.value = kb;
-                option.textContent = knowledgeBaseLabel(kb);
-                select.appendChild(option);
-            });
-            select.value = currentKnowledgeBase;
+        knowledgeBaseSelect.innerHTML = '';
+        knowledgeBaseSelect.multiple = true;
+        knowledgeBaseSelect.size = 1;
+        knowledgeBaseSelect.title = '按住 Command/Ctrl 可选择多个知识库';
+        available.forEach(kb => {
+            const option = document.createElement('option');
+            option.value = kb;
+            option.textContent = knowledgeBaseLabel(kb);
+            option.selected = selectedKnowledgeBaseList().includes(kb);
+            knowledgeBaseSelect.appendChild(option);
         });
+
+        documentKnowledgeBaseSelect.innerHTML = '';
+        available.forEach(kb => {
+            const option = document.createElement('option');
+            option.value = kb;
+            option.textContent = knowledgeBaseLabel(kb);
+            documentKnowledgeBaseSelect.appendChild(option);
+        });
+        documentKnowledgeBaseSelect.value = currentKnowledgeBase;
     }
 
     function syncKnowledgeBaseControls() {
-        knowledgeBaseSelect.value = currentKnowledgeBase;
+        Array.from(knowledgeBaseSelect.options).forEach(option => {
+            option.selected = selectedKnowledgeBaseList().includes(option.value);
+        });
         documentKnowledgeBaseSelect.value = currentKnowledgeBase;
     }
 
     function setCurrentKnowledgeBase(value) {
-        currentKnowledgeBase = value || DEFAULT_KNOWLEDGE_BASE;
-        localStorage.setItem(KNOWLEDGE_BASE_KEY, currentKnowledgeBase);
+        saveSelectedKnowledgeBases([value || DEFAULT_KNOWLEDGE_BASE]);
+        faqDraft.hidden = true;
+        faqDraft.value = '';
+        syncKnowledgeBaseControls();
+    }
+
+    function setCurrentKnowledgeBases(values) {
+        saveSelectedKnowledgeBases(values);
         faqDraft.hidden = true;
         faqDraft.value = '';
         syncKnowledgeBaseControls();
@@ -470,14 +553,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return newKnowledgeBase || documentKnowledgeBaseSelect.value || currentKnowledgeBase;
     }
 
-    function knowledgeBaseLabel(value) {
-        return value === DEFAULT_KNOWLEDGE_BASE ? '默认知识库' : value;
-    }
-
     async function loadFileList() {
         try {
             const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/files/list?${params}`);
+            const response = await authFetch(`/api/v1/files/list?${params}`);
             if (response.status === 401 || response.status === 403) {
                 fileList.innerHTML = '';
                 fileEmpty.style.display = 'block';
@@ -573,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadKnowledgeBaseStatus() {
         try {
-            const response = await authFetch('/api/files/status');
+            const response = await authFetch('/api/v1/files/status');
             if (!response.ok) {
                 statusList.innerHTML = '';
                 return;
@@ -599,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadKnowledgeGaps() {
         try {
             const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/files/gaps?${params}`);
+            const response = await authFetch(`/api/v1/files/gaps?${params}`);
             if (!response.ok) {
                 gapList.innerHTML = '';
                 gapEmpty.style.display = 'none';
@@ -642,7 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/files/gaps/${encodeURIComponent(gapId)}?${params}`, { method: 'DELETE' });
+            const response = await authFetch(`/api/v1/files/gaps/${encodeURIComponent(gapId)}?${params}`, { method: 'DELETE' });
             if (response.status === 401 || response.status === 403) {
                 setUploadStatus('当前账号没有处理知识缺口权限', 'error');
                 return;
@@ -660,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAuditEvents() {
         try {
-            const response = await authFetch('/api/files/audit?limit=12');
+            const response = await authFetch('/api/v1/files/audit?limit=12');
             if (!response.ok) {
                 auditList.innerHTML = '';
                 auditEmpty.style.display = 'none';
@@ -688,85 +767,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function actionText(action) {
-        const labels = {
-            CHAT_REQUEST: '发起问答',
-            UPLOAD_DOCUMENT: '上传文档',
-            DOWNLOAD_DOCUMENT: '下载文档',
-            DELETE_DOCUMENT: '删除文档',
-            REFRESH_INDEX: '刷新索引',
-            GENERATE_FAQ_DRAFT: '生成 FAQ 草稿',
-            RESOLVE_KNOWLEDGE_GAP: '处理知识缺口'
-        };
-        return labels[action] || action || '未知操作';
-    }
-
-    function getFileIconElement(filename) {
-        const lower = filename.toLowerCase();
-        const el = document.createElement('i');
-        el.setAttribute('data-lucide', 'file-text');
-        if (lower.endsWith('.pdf')) {
-            el.classList.add('file-pdf');
-        } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
-            el.classList.add('file-word');
-        } else if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) {
-            el.classList.add('file-excel');
-        } else if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) {
-            el.classList.add('file-ppt');
-        } else {
-            el.classList.add('file-text');
-        }
-        return el;
-    }
-
-    function statusClass(status) {
-        if (status === 'INDEXED') return 'indexed';
-        if (status === 'FAILED') return 'failed';
-        if (status === 'INDEXING') return 'indexing';
-        return 'pending';
-    }
-
-    function statusText(file) {
-        const stale = file.stale ? ` · 可能过期 ${file.daysSinceUpload || 0} 天` : '';
-        if (file.indexStatus === 'INDEXED') return `已索引 · ${file.chunkCount || 0} 片段${stale}`;
-        if (file.indexStatus === 'FAILED') return `索引失败${file.error ? ' · ' + file.error : ''}`;
-        if (file.indexStatus === 'INDEXING') return `索引中${stale}`;
-        return `待索引${stale}`;
-    }
-
-    function statusDetailText(file) {
-        if (file.indexStatus === 'INDEXED' && file.lastIndexedAt) {
-            return `索引于 ${formatDateTime(file.lastIndexedAt)}`;
-        }
-        if (file.indexStatus === 'FAILED' && file.lastIndexedAt) {
-            return `失败于 ${formatDateTime(file.lastIndexedAt)}`;
-        }
-        return '';
-    }
-
-    function formatDate(value) {
-        if (!value) return '未知时间';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return '未知时间';
-        return date.toLocaleDateString('zh-CN');
-    }
-
-    function formatDateTime(value) {
-        if (!value) return '未知时间';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return '未知时间';
-        return date.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-
     function downloadFile(filename, knowledgeBase) {
         const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-        const url = `/api/files/${encodeURIComponent(filename)}/download?${params}`;
+        const url = `/api/v1/files/${encodeURIComponent(filename)}/download?${params}`;
         authFetch(url).then(resp => {
             if (!resp.ok) return;
             return resp.blob();
@@ -786,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
+            const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
             if (response.status === 401 || response.status === 403) {
                 setUploadStatus('当前账号没有删除权限', 'error');
                 return;
@@ -811,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             setUploadStatus(`正在重新索引 ${filename}…`);
             const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/files/${encodeURIComponent(filename)}/reindex?${params}`, { method: 'POST' });
+            const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}/reindex?${params}`, { method: 'POST' });
             if (response.status === 401 || response.status === 403) {
                 setUploadStatus('当前账号没有重新索引权限', 'error');
                 return;
@@ -835,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setUploadStatus('正在重新构建索引，请稍候…');
 
         try {
-            const response = await authFetch('/api/files/refresh', { method: 'POST' });
+            const response = await authFetch('/api/v1/files/refresh', { method: 'POST' });
             if (response.status === 401 || response.status === 403) {
                 setUploadStatus('当前账号没有重新索引权限', 'error');
                 return;
@@ -906,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const filename of files) {
             try {
                 const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-                const response = await authFetch(`/api/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
+                const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
                 if (response.ok) {
                     deleted++;
                     selectedFiles.delete(filename);
@@ -945,7 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setUploadStatus(`正在解析并构建索引: ${file.name}`);
 
         try {
-            const response = await authFetch('/api/files/upload', {
+            const response = await authFetch('/api/v1/files/upload', {
                 method: 'POST',
                 body: formData,
                 headers: {}  // authFetch 会自动添加 Authorization，不要手动设 Content-Type
@@ -990,10 +993,14 @@ document.addEventListener('DOMContentLoaded', () => {
         sendBtn.disabled = true;
 
         if (!currentId || !getConversation(currentId)) createConversation();
+        const conversationId = currentId;
+        const requestKnowledgeBases = selectedKnowledgeBaseList();
+        const requestKnowledgeBaseValue = selectedKnowledgeBaseValue();
+        const requestDebugMode = debugMode;
         if (welcomeScreen) welcomeScreen.style.display = 'none';
 
         appendMessage('user', message);
-        persistMessage('user', message);
+        persistMessage(conversationId, 'user', message);
 
         userInput.value = '';
         userInput.style.height = 'auto';
@@ -1005,11 +1012,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let pendingDebugInfo = null;
 
         try {
-            await streamChatResponse(message, currentId, {
+            await streamChatResponse(message, conversationId, requestKnowledgeBases, requestKnowledgeBaseValue, {
                 onToken: (token) => {
                     assistantText += token;
-                    textDiv.innerHTML = formatResponse(assistantText);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    if (currentId === conversationId && assistantRow.isConnected) {
+                        textDiv.innerHTML = formatResponse(assistantText);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
                 },
                 onSources: (sources) => {
                     pendingSources = sources;
@@ -1020,24 +1029,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 onError: (errorMessage) => {
                     throw new Error(errorMessage);
                 }
-            }, debugMode);
+            }, requestDebugMode);
+
+            const debugInfoToPersist = requestDebugMode ? (pendingDebugInfo || {
+                allCandidates: [],
+                usedCount: 0,
+                knowledgeBase: requestKnowledgeBaseValue
+            }) : null;
 
             if (assistantText.trim() !== '') {
-                persistMessage('assistant', assistantText);
+                persistMessage(conversationId, 'assistant', assistantText, {
+                    sources: pendingSources || [],
+                    debugInfo: debugInfoToPersist
+                });
             }
-            if (pendingSources && pendingSources.length > 0) {
+            if (currentId === conversationId && assistantRow.isConnected && pendingSources && pendingSources.length > 0) {
                 renderSourceCards(assistantRow, pendingSources);
             }
-            if (pendingDebugInfo) {
-                renderDebugPanel(assistantRow, pendingDebugInfo);
+            if (currentId === conversationId && assistantRow.isConnected && requestDebugMode) {
+                renderDebugPanel(assistantRow, debugInfoToPersist);
             }
         } catch (error) {
             console.error('Error:', error);
             if (assistantText.trim() !== '') {
-                persistMessage('assistant', assistantText);
+                persistMessage(conversationId, 'assistant', assistantText, {
+                    sources: pendingSources || [],
+                    debugInfo: requestDebugMode ? (pendingDebugInfo || {
+                        allCandidates: [],
+                        usedCount: 0,
+                        knowledgeBase: requestKnowledgeBaseValue
+                    }) : null
+                });
             } else {
-                textDiv.textContent = error.message || '无法建立连接，请检查后端服务是否启动。';
-                textDiv.classList.add('message-error');
+                if (currentId === conversationId && assistantRow.isConnected) {
+                    textDiv.textContent = error.message || '无法建立连接，请检查后端服务是否启动。';
+                    textDiv.classList.add('message-error');
+                }
             }
         } finally {
             isProcessing = false;
@@ -1046,47 +1073,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    async function streamChatResponse(message, sessionId, handlers, debug = false) {
-        const url = debug ? '/api/chat/stream?debug=true' : '/api/chat/stream';
-        const response = await authFetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, sessionId, knowledgeBase: currentKnowledgeBase })
-        });
-
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || '处理请求时发生错误');
-        }
-        if (!response.body) {
-            throw new Error('无法建立连接，请检查后端服务是否启动。');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split(/\r?\n\r?\n/);
-            buffer = events.pop() || '';
-
-            events.forEach(rawEvent => handleStreamEvent(rawEvent, handlers));
-        }
-
-        buffer += decoder.decode();
-        if (buffer.trim() !== '') {
-            handleStreamEvent(buffer, handlers);
-        }
+    async function streamChatResponse(message, sessionId, knowledgeBases, knowledgeBase, handlers, debug = false) {
+        return streamChatResponseApi(authFetch, {
+            message,
+            sessionId,
+            knowledgeBase,
+            knowledgeBases,
+            debug
+        }, handlers);
     }
 
     async function generateFaqDraft() {
         try {
             const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/files/faq-draft?${params}`);
+            const response = await authFetch(`/api/v1/files/faq-draft?${params}`);
             if (response.status === 401 || response.status === 403) {
                 setUploadStatus('当前账号没有生成 FAQ 草稿权限', 'error');
                 return;
@@ -1101,54 +1101,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error generating FAQ draft:', error);
             setUploadStatus('FAQ 草稿生成失败', 'error');
         }
-    }
-
-    function handleStreamEvent(rawEvent, handlers) {
-        const event = parseSseEvent(rawEvent);
-        if (!event) return;
-
-        if (event.name === 'token') {
-            handlers.onToken(event.data);
-        }
-        if (event.name === 'sources') {
-            try {
-                const sources = JSON.parse(event.data);
-                if (handlers.onSources && Array.isArray(sources)) {
-                    handlers.onSources(sources);
-                }
-            } catch (e) {
-                console.error('Failed to parse sources event:', e);
-            }
-        }
-        if (event.name === 'debug') {
-            try {
-                const debugInfo = JSON.parse(event.data);
-                if (handlers.onDebug) {
-                    handlers.onDebug(debugInfo);
-                }
-            } catch (e) {
-                console.error('Failed to parse debug event:', e);
-            }
-        }
-        if (event.name === 'error') {
-            handlers.onError(event.data || '处理请求时发生错误');
-        }
-    }
-
-    function parseSseEvent(rawEvent) {
-        let name = 'message';
-        const data = [];
-
-        rawEvent.split(/\r?\n/).forEach(line => {
-            if (line.startsWith('event:')) {
-                name = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-                data.push(line.slice(5).replace(/^ /, ''));
-            }
-        });
-
-        if (data.length === 0 && name === 'message') return null;
-        return { name, data: data.join('\n') };
     }
 
     sendBtn.addEventListener('click', sendMessage);
@@ -1208,7 +1160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateBatchCount();
     });
     knowledgeBaseSelect.addEventListener('change', () => {
-        setCurrentKnowledgeBase(knowledgeBaseSelect.value);
+        const selected = Array.from(knowledgeBaseSelect.selectedOptions).map(option => option.value);
+        setCurrentKnowledgeBases(selected);
         if (!documentModal.classList.contains('hidden')) {
             loadFileList();
             loadKnowledgeGaps();
@@ -1251,12 +1204,6 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessages.appendChild(row);
         chatMessages.scrollTop = chatMessages.scrollHeight;
         return row;
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     function renderSourceCards(container, sources) {
@@ -1325,7 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wrapper.appendChild(header);
 
         const content = document.createElement('div');
-        content.className = 'debug-panel-content collapsed';
+        content.className = 'debug-panel-content';
 
         if (debugInfo.allCandidates && debugInfo.allCandidates.length > 0) {
             const table = document.createElement('table');
@@ -1364,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'debug-toggle-btn';
         toggleBtn.type = 'button';
-        toggleBtn.textContent = '展开调试信息';
+        toggleBtn.textContent = '收起调试信息';
         toggleBtn.addEventListener('click', () => {
             const expanded = content.classList.contains('collapsed');
             content.classList.toggle('collapsed', !expanded);
@@ -1381,53 +1328,6 @@ document.addEventListener('DOMContentLoaded', () => {
             insertAfter.parentNode.appendChild(wrapper);
         }
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function truncateFilename(filename) {
-        if (!filename) return '';
-        if (filename.length <= 20) return filename;
-        const ext = filename.lastIndexOf('.');
-        if (ext > 0) {
-            return filename.substring(0, 12) + '...' + filename.substring(ext);
-        }
-        return filename.substring(0, 17) + '...';
-    }
-
-    function getFileTypeLabel(filename) {
-        const lower = filename.toLowerCase();
-        if (lower.endsWith('.pdf')) return 'PDF';
-        if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'DOC';
-        if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return 'XLS';
-        if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'PPT';
-        return 'TXT';
-    }
-
-    function getFileColorClass(filename) {
-        const lower = filename.toLowerCase();
-        if (lower.endsWith('.pdf')) return 'file-pdf';
-        if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'file-word';
-        if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return 'file-excel';
-        if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'file-ppt';
-        return 'file-text';
-    }
-
-    function formatResponse(text) {
-        const codeBlocks = [];
-        let html = escapeHtml(text).replace(/```([\s\S]*?)```/g, (_, code) => {
-            const key = `__DOCUMIND_CODE_BLOCK_${codeBlocks.length}__`;
-            codeBlocks.push(`<div class="code-block"><pre><code>${code.trim()}</code></pre></div>`);
-            return key;
-        });
-
-        html = html
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\n/g, '<br>');
-
-        codeBlocks.forEach((block, index) => {
-            html = html.replace(`__DOCUMIND_CODE_BLOCK_${index}__`, block);
-        });
-
-        return html;
     }
 
     applyTheme(localStorage.getItem(THEME_KEY) || 'dark');

@@ -1,17 +1,23 @@
 package com.documind.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.Collections;
 import java.util.List;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ChatResponse {
 
     private String response;
     private String error;
+    @Setter(lombok.AccessLevel.NONE)
     private List<SourceReference> sources = Collections.emptyList();
     private boolean fromDocuments;
-
-    public ChatResponse() {
-    }
 
     public ChatResponse(String response) {
         this.response = response;
@@ -37,35 +43,7 @@ public class ChatResponse {
         return chatResponse;
     }
 
-    public String getResponse() {
-        return response;
-    }
-
-    public void setResponse(String response) {
-        this.response = response;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
-    }
-
-    public List<SourceReference> getSources() {
-        return sources;
-    }
-
     public void setSources(List<SourceReference> sources) {
         this.sources = sources == null ? Collections.emptyList() : sources;
-    }
-
-    public boolean isFromDocuments() {
-        return fromDocuments;
-    }
-
-    public void setFromDocuments(boolean fromDocuments) {
-        this.fromDocuments = fromDocuments;
     }
 }

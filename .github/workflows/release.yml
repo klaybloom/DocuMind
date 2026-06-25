@@ -37,6 +37,9 @@ jobs:
       - name: Build JAR
         run: mvn package -DskipTests -B
 
+      - name: Generate SBOM
+        run: mvn cyclonedx:makeBom -B
+
       - name: Set Docker image name
         id: image
         run: |
@@ -63,7 +66,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: target/documind-${{ steps.version.outputs.VERSION }}.jar
+          files: |
+            target/documind-${{ steps.version.outputs.VERSION }}.jar
+            target/bom.json
+            target/bom.xml
           body: |
             ## DocuMind ${{ github.ref_name }}
 

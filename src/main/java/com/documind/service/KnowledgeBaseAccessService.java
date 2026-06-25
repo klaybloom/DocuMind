@@ -38,6 +38,13 @@ public class KnowledgeBaseAccessService {
         return allowed.contains("*") || allowed.contains(documentService.normalizeKnowledgeBase(knowledgeBase));
     }
 
+    public boolean canAccessAll(Authentication authentication, List<String> knowledgeBases) {
+        if (knowledgeBases == null || knowledgeBases.isEmpty()) {
+            return canAccess(authentication, DocumentService.DEFAULT_KNOWLEDGE_BASE);
+        }
+        return knowledgeBases.stream().allMatch(knowledgeBase -> canAccess(authentication, knowledgeBase));
+    }
+
     public List<String> filterAccessible(Authentication authentication, List<String> knowledgeBases) {
         if (authentication == null || knowledgeBases == null) {
             return List.of();

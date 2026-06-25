@@ -3,7 +3,15 @@ package com.documind.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ChatRequest {
 
     @NotBlank(message = "消息不能为空")
@@ -18,34 +26,12 @@ public class ChatRequest {
     @Pattern(regexp = "^$|[\\p{L}\\p{N}._-]+$", message = "知识库名称只能包含文字、数字、点、下划线和连字符")
     private String knowledgeBase;
 
-    public ChatRequest() {
-    }
+    @Size(max = 10, message = "一次最多选择10个知识库")
+    private List<@Size(max = 60, message = "知识库名称长度不能超过60字符")
+            @Pattern(regexp = "[\\p{L}\\p{N}._-]+", message = "知识库名称只能包含文字、数字、点、下划线和连字符")
+                    String> knowledgeBases;
 
     public ChatRequest(String message) {
         this.message = message;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public String getKnowledgeBase() {
-        return knowledgeBase;
-    }
-
-    public void setKnowledgeBase(String knowledgeBase) {
-        this.knowledgeBase = knowledgeBase;
     }
 }

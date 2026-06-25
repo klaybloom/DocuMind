@@ -22,13 +22,16 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/health").permitAll()
-                        .requestMatchers("/api/health/**").hasRole("ADMIN")
-                        .requestMatchers("/api/auth/me").permitAll()
-                        .requestMatchers("/api/files/knowledge-bases").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/files/**").hasRole("ADMIN")
-                        .requestMatchers("/api/chat/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/", "/index.html", "/app.js", "/style.css", "/favicon.ico").permitAll()
+                        .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/api/v1/health/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/auth/me").permitAll()
+                        .requestMatchers("/api/v1/files/knowledge-bases").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/v1/files/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/chat/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/", "/index.html", "/app.js", "/api.js", "/utils.js",
+                                "/style.css", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )
                 .httpBasic(basic -> basic

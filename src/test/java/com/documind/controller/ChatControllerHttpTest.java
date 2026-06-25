@@ -62,7 +62,7 @@ class ChatControllerHttpTest {
 
     @Test
     void chatReturnsAnswerAndRecordsMetadataOnlyAuditEvent() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -96,7 +96,7 @@ class ChatControllerHttpTest {
 
     @Test
     void chatRejectsUnauthorizedKnowledgeBaseWithoutCallingModelOrAudit() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -118,10 +118,33 @@ class ChatControllerHttpTest {
     }
 
     @Test
+    void chatAcceptsMultipleKnowledgeBasesForAdmins() throws Exception {
+        mockMvc.perform(post("/api/v1/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "message": "综合说明制度要求",
+                                  "sessionId": "session-1",
+                                  "knowledgeBases": ["HR", "Legal"]
+                                }
+                                """)
+                        .principal(named("admin"))
+                        .with(request -> {
+                            request.setUserPrincipal(user("admin", "ROLE_ADMIN"));
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.response").value("测试回答"));
+
+        assertThat(ragService.knowledgeBase).isEqualTo("HR,Legal");
+        assertThat(auditService.details).containsEntry("knowledgeBases", List.of("HR", "Legal"));
+    }
+
+    @Test
     void chatRejectsRateLimitedRequestWithoutCallingModel() throws Exception {
         rateLimitService.decision = RateLimitService.RateLimitDecision.rejected(30, 12);
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -156,7 +179,7 @@ class ChatControllerHttpTest {
     void streamChatRejectsRateLimitedRequestWithoutCallingModel() throws Exception {
         rateLimitService.decision = RateLimitService.RateLimitDecision.rejected(30, 12);
 
-        mockMvc.perform(post("/api/chat/stream")
+        mockMvc.perform(post("/api/v1/chat/stream")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -187,7 +210,7 @@ class ChatControllerHttpTest {
 
     @Test
     void invalidChatRequestReturnsValidationMessageWithoutCallingModelOrAudit() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -213,7 +236,7 @@ class ChatControllerHttpTest {
 
     @Test
     void clearSessionRejectsInvalidSessionIdWithoutClearingMemoryOrAudit() throws Exception {
-        mockMvc.perform(delete("/api/chat/sessions/bad session")
+        mockMvc.perform(delete("/api/v1/chat/sessions/bad session")
                         .principal(named("reader")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("会话ID无效"));
@@ -226,7 +249,7 @@ class ChatControllerHttpTest {
     void clearSessionClearsMemoryAndRecordsAuditEvent() throws Exception {
         ragService.clearResult = 2;
 
-        mockMvc.perform(delete("/api/chat/sessions/session-1")
+        mockMvc.perform(delete("/api/v1/chat/sessions/session-1")
                         .principal(named("reader")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.removedMemories").value(2));
@@ -242,7 +265,7 @@ class ChatControllerHttpTest {
 
     @Test
     void scopedSessionIdSanitizesActorNameBeforeCallingRagService() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

@@ -1,5 +1,10 @@
 package com.documind.dto;
 
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
 public class DocumentFileInfo {
 
     private String knowledgeBase;
@@ -16,9 +21,6 @@ public class DocumentFileInfo {
     private String fileHash;
     private boolean stale;
     private long daysSinceUpload;
-
-    public DocumentFileInfo() {
-    }
 
     public DocumentFileInfo(String knowledgeBase,
                             String fileName,
@@ -44,117 +46,5 @@ public class DocumentFileInfo {
         this.chunkCount = chunkCount;
         this.error = error;
         this.fileHash = fileHash;
-    }
-
-    public String getKnowledgeBase() {
-        return knowledgeBase;
-    }
-
-    public void setKnowledgeBase(String knowledgeBase) {
-        this.knowledgeBase = knowledgeBase;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public long getSizeBytes() {
-        return sizeBytes;
-    }
-
-    public void setSizeBytes(long sizeBytes) {
-        this.sizeBytes = sizeBytes;
-    }
-
-    public String getContentType() {
-        return contentType;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getUploadedBy() {
-        return uploadedBy;
-    }
-
-    public void setUploadedBy(String uploadedBy) {
-        this.uploadedBy = uploadedBy;
-    }
-
-    public String getUploadedAt() {
-        return uploadedAt;
-    }
-
-    public void setUploadedAt(String uploadedAt) {
-        this.uploadedAt = uploadedAt;
-    }
-
-    public String getLastIndexedAt() {
-        return lastIndexedAt;
-    }
-
-    public void setLastIndexedAt(String lastIndexedAt) {
-        this.lastIndexedAt = lastIndexedAt;
-    }
-
-    public String getIndexStatus() {
-        return indexStatus;
-    }
-
-    public void setIndexStatus(String indexStatus) {
-        this.indexStatus = indexStatus;
-    }
-
-    public int getChunkCount() {
-        return chunkCount;
-    }
-
-    public void setChunkCount(int chunkCount) {
-        this.chunkCount = chunkCount;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
-    }
-
-    public String getFileHash() {
-        return fileHash;
-    }
-
-    public void setFileHash(String fileHash) {
-        this.fileHash = fileHash;
-    }
-
-    public boolean isStale() {
-        return stale;
-    }
-
-    public void setStale(boolean stale) {
-        this.stale = stale;
-    }
-
-    public long getDaysSinceUpload() {
-        return daysSinceUpload;
-    }
-
-    public void setDaysSinceUpload(long daysSinceUpload) {
-        this.daysSinceUpload = daysSinceUpload;
     }
 }

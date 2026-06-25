@@ -609,6 +609,18 @@ button:active:not(:disabled) {
     border-color: var(--text-muted);
 }
 
+.topbar-right select[multiple] {
+    min-width: 160px;
+    height: 34px;
+    overflow: hidden;
+}
+
+.topbar-right select[multiple]:focus {
+    height: auto;
+    min-height: 92px;
+    overflow-y: auto;
+}
+
 .chat-container {
     flex: 1;
     overflow-y: auto;
@@ -914,6 +926,10 @@ button:active:not(:disabled) {
     color: var(--text-secondary);
     line-height: 1.5;
     overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    max-height: min(56vh, 560px);
+    overflow-y: auto;
+    padding-right: 4px;
     transition: max-height 0.25s ease;
 }
 

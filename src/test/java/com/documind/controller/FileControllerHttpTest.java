@@ -58,7 +58,7 @@ class FileControllerHttpTest {
         Files.writeString(document, "员工制度", StandardCharsets.UTF_8);
         documentService.downloadPath = document;
 
-        mockMvc.perform(get("/api/files/policy.txt/download")
+        mockMvc.perform(get("/api/v1/files/policy.txt/download")
                         .param("knowledgeBase", "HR")
                         .principal(named("admin")))
                 .andExpect(status().isOk())
@@ -77,7 +77,7 @@ class FileControllerHttpTest {
     void invalidDownloadReturnsNotFoundWithoutAuditEvent() throws Exception {
         documentService.downloadError = new InvalidFileException("文件不存在");
 
-        mockMvc.perform(get("/api/files/missing.txt/download")
+        mockMvc.perform(get("/api/v1/files/missing.txt/download")
                         .param("knowledgeBase", "HR")
                         .principal(named("admin")))
                 .andExpect(status().isNotFound());
@@ -89,7 +89,7 @@ class FileControllerHttpTest {
     void invalidDownloadInputReturnsBadRequestWithoutAuditEvent() throws Exception {
         documentService.downloadError = new InvalidFileException("知识库名称无效");
 
-        mockMvc.perform(get("/api/files/policy.txt/download")
+        mockMvc.perform(get("/api/v1/files/policy.txt/download")
                         .param("knowledgeBase", "../HR")
                         .principal(named("admin")))
                 .andExpect(status().isBadRequest());
@@ -101,7 +101,7 @@ class FileControllerHttpTest {
     void deletingMissingDocumentReturnsNotFoundWithoutRefreshingIndex() throws Exception {
         documentService.deleteResult = false;
 
-        mockMvc.perform(delete("/api/files/missing.txt")
+        mockMvc.perform(delete("/api/v1/files/missing.txt")
                         .param("knowledgeBase", "HR")
                         .principal(named("admin")))
                 .andExpect(status().isNotFound())
@@ -116,7 +116,7 @@ class FileControllerHttpTest {
     void deletingStoredDocumentRefreshesIndexAndRecordsAuditEvent() throws Exception {
         documentService.deleteResult = true;
 
-        mockMvc.perform(delete("/api/files/policy.txt")
+        mockMvc.perform(delete("/api/v1/files/policy.txt")
                         .param("knowledgeBase", "HR")
                         .principal(named("admin")))
                 .andExpect(status().isOk())
@@ -135,7 +135,7 @@ class FileControllerHttpTest {
     void deletingWithInvalidKnowledgeBaseReturnsBadRequestWithoutSideEffects() throws Exception {
         documentService.normalizeError = new InvalidFileException("知识库名称无效");
 
-        mockMvc.perform(delete("/api/files/policy.txt")
+        mockMvc.perform(delete("/api/v1/files/policy.txt")
                         .param("knowledgeBase", "../HR")
                         .principal(named("admin")))
                 .andExpect(status().isBadRequest())
@@ -150,7 +150,7 @@ class FileControllerHttpTest {
     void listFilesWithInvalidKnowledgeBaseReturnsBadRequest() throws Exception {
         documentService.listError = new InvalidFileException("知识库名称无效");
 
-        mockMvc.perform(get("/api/files/list")
+        mockMvc.perform(get("/api/v1/files/list")
                         .param("knowledgeBase", "../HR")
                         .principal(named("admin")))
                 .andExpect(status().isBadRequest())
@@ -163,7 +163,7 @@ class FileControllerHttpTest {
     void listGapsWithInvalidKnowledgeBaseReturnsBadRequest() throws Exception {
         documentService.gapsError = new InvalidFileException("知识库名称无效");
 
-        mockMvc.perform(get("/api/files/gaps")
+        mockMvc.perform(get("/api/v1/files/gaps")
                         .param("knowledgeBase", "../HR")
                         .principal(named("admin")))
                 .andExpect(status().isBadRequest())
@@ -176,7 +176,7 @@ class FileControllerHttpTest {
     void faqDraftWithInvalidKnowledgeBaseReturnsBadRequestWithoutAuditEvent() throws Exception {
         documentService.faqError = new InvalidFileException("知识库名称无效");
 
-        mockMvc.perform(get("/api/files/faq-draft")
+        mockMvc.perform(get("/api/v1/files/faq-draft")
                         .param("knowledgeBase", "../HR")
                         .principal(named("admin")))
                 .andExpect(status().isBadRequest())

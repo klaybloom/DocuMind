@@ -3,46 +3,46 @@
     "id": 1,
     "category": "precise_fact",
     "knowledgeBase": "default",
-    "question": "鸿蒙生态应用开发白皮书中提到的鸿蒙系统核心特性有哪些？",
+    "question": "鸿蒙知识库中提到的系统核心特性有哪些？",
     "expectedAnswerContains": "分布式",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "精确事实查询，应命中白皮书中的核心特性章节"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "精确事实查询，应命中鸿蒙指南核心特性内容"
   },
   {
     "id": 2,
     "category": "precise_fact",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统的开发框架叫什么名字？",
+    "question": "鸿蒙应用开发使用的 UI 框架叫什么？",
     "expectedAnswerContains": "ArkUI",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "术语查询，应命中开发框架相关内容"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "精确事实查询，应命中开发框架"
   },
   {
     "id": 3,
     "category": "precise_fact",
     "knowledgeBase": "default",
-    "question": "鸿蒙白皮书中提到的应用开发语言是什么？",
+    "question": "鸿蒙应用开发语言是什么？",
     "expectedAnswerContains": "ArkTS",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "精确事实查询"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "精确事实查询，应命中开发语言"
   },
   {
     "id": 4,
     "category": "precise_fact",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统的分布式软总线技术的主要作用是什么？",
-    "expectedAnswerContains": "设备",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "精确事实查询，应描述设备互联"
+    "question": "分布式软总线主要用来解决什么问题？",
+    "expectedAnswerContains": "设备协同",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "精确事实查询，应命中分布式软总线段落"
   },
   {
     "id": 5,
     "category": "precise_fact",
     "knowledgeBase": "default",
-    "question": "鸿蒙白皮书中提到的原子化服务是什么？",
+    "question": "原子化服务的特点是什么？",
     "expectedAnswerContains": "免安装",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "术语解释查询"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "精确事实查询，应命中原子化服务"
   },
   {
     "id": 6,
@@ -50,89 +50,89 @@
     "knowledgeBase": "default",
     "question": "HarmonyOS 的内核架构是什么？",
     "expectedAnswerContains": "微内核",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "技术术语查询"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "术语查询"
   },
   {
     "id": 7,
     "category": "terminology",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统中的 HAP 包是什么？",
+    "question": "HAP 包全称是什么？",
     "expectedAnswerContains": "HarmonyOS Ability Package",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "缩写术语查询"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "术语查询"
   },
   {
     "id": 8,
     "category": "terminology",
     "knowledgeBase": "default",
-    "question": "什么是鸿蒙系统的 Ability？",
-    "expectedAnswerContains": "应用",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "核心概念查询"
+    "question": "Ability 在鸿蒙应用中代表什么？",
+    "expectedAnswerContains": "应用能力",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "术语查询"
   },
   {
     "id": 9,
     "category": "terminology",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统中的 FA 和 PA 分别代表什么？",
+    "question": "FA 和 PA 分别代表什么？",
     "expectedAnswerContains": "Feature Ability",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "缩写全称查询"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "缩写术语查询"
   },
   {
     "id": 10,
     "category": "terminology",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统的方舟编译器有什么特点？",
-    "expectedAnswerContains": "编译",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
+    "question": "方舟编译器的特点是什么？",
+    "expectedAnswerContains": "提前编译",
+    "expectedSourceFile": "harmony-guide.txt",
     "notes": "技术组件查询"
   },
   {
     "id": 11,
     "category": "multi_chunk",
     "knowledgeBase": "default",
-    "question": "请总结鸿蒙白皮书中关于应用开发全流程的描述。",
-    "expectedAnswerContains": "开发",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合多个片段的总结型问题"
+    "question": "请总结鸿蒙应用开发流程。",
+    "expectedAnswerContains": "设计",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "多片段总结，应命中开发流程"
   },
   {
     "id": 12,
     "category": "multi_chunk",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统支持哪些类型的设备？各有什么开发要求？",
-    "expectedAnswerContains": "设备",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合多段信息"
+    "question": "鸿蒙应用支持哪些设备形态？",
+    "expectedAnswerContains": "手机",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "多片段总结，应命中设备形态"
   },
   {
     "id": 13,
     "category": "multi_chunk",
     "knowledgeBase": "default",
-    "question": "鸿蒙白皮书中描述了哪些安全机制？",
-    "expectedAnswerContains": "安全",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合安全相关多个片段"
+    "question": "鸿蒙安全机制包含哪些内容？",
+    "expectedAnswerContains": "权限",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "多片段总结，应命中安全机制"
   },
   {
     "id": 14,
     "category": "multi_chunk",
     "knowledgeBase": "default",
-    "question": "鸿蒙系统的应用生命周期管理是怎样的？",
-    "expectedAnswerContains": "生命周期",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合生命周期相关片段"
+    "question": "鸿蒙应用生命周期如何管理？",
+    "expectedAnswerContains": "创建",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "多片段总结，应命中生命周期"
   },
   {
     "id": 15,
     "category": "multi_chunk",
     "knowledgeBase": "default",
-    "question": "鸿蒙白皮书中关于应用上架和分发有哪些说明？",
+    "question": "鸿蒙应用上架和分发有哪些要求？",
     "expectedAnswerContains": "应用市场",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合分发相关片段"
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "多片段总结，应命中上架分发"
   },
   {
     "id": 16,
@@ -141,16 +141,16 @@
     "question": "量子计算的基本原理是什么？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "无关问题，文档中不应有相关内容"
+    "notes": "无关问题，不应命中文档"
   },
   {
     "id": 17,
     "category": "no_hit",
     "knowledgeBase": "default",
-    "question": "2024年诺贝尔物理学奖授予了谁？",
+    "question": "今天北京的天气怎么样？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "无关问题"
+    "notes": "实时信息，不应命中文档"
   },
   {
     "id": 18,
@@ -159,114 +159,114 @@
     "question": "如何做红烧肉？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "无关问题，生活类"
+    "notes": "生活类问题，不应命中文档"
   },
   {
     "id": 19,
     "category": "no_hit",
     "knowledgeBase": "default",
-    "question": "Python 和 Java 哪个更适合初学者？",
+    "question": "足球比赛越位规则是什么？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "无关问题，编程语言比较"
+    "notes": "体育类问题，不应命中文档"
   },
   {
     "id": 20,
     "category": "no_hit",
     "knowledgeBase": "default",
-    "question": "北京今天的天气怎么样？",
+    "question": "股票短线交易应该怎么操作？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "无关问题，实时信息"
+    "notes": "投资类问题，不应命中文档"
   },
   {
     "id": 21,
     "category": "cross_file",
     "knowledgeBase": "default",
-    "question": "data.txt 文件中包含了什么内容？",
-    "expectedAnswerContains": "",
-    "expectedSourceFile": "data.txt",
-    "notes": "跨文件查询，应命中 data.txt"
+    "question": "产品数据文件中列出了哪些产品代号？",
+    "expectedAnswerContains": "Alpha",
+    "expectedSourceFile": "product-data.txt",
+    "notes": "跨文件查询，应命中产品数据文件"
   },
   {
     "id": 22,
     "category": "cross_file",
     "knowledgeBase": "default",
-    "question": "当前知识库中有哪些文档？",
-    "expectedAnswerContains": "",
-    "expectedSourceFile": null,
-    "notes": "元信息查询，可能需要多文件信息"
+    "question": "Beta 产品的状态是什么？",
+    "expectedAnswerContains": "灰度验证",
+    "expectedSourceFile": "product-data.txt",
+    "notes": "跨文件查询，应命中特定产品状态"
   },
   {
     "id": 23,
     "category": "cross_file",
     "knowledgeBase": "default",
-    "question": "白皮书和 data.txt 的内容有什么关联？",
-    "expectedAnswerContains": "",
-    "expectedSourceFile": null,
-    "notes": "跨文件对比"
+    "question": "产品数据和鸿蒙指南共同提到的生态方向是什么？",
+    "expectedAnswerContains": "生态伙伴",
+    "expectedSourceFile": "product-data.txt",
+    "notes": "跨文件关联查询，至少应命中产品数据文件"
   },
   {
     "id": 24,
     "category": "cross_file",
     "knowledgeBase": "default",
     "question": "鸿蒙系统与 Android 的主要区别是什么？",
-    "expectedAnswerContains": "",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "对比问题，文档中可能有提及"
+    "expectedAnswerContains": "多设备协同",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "跨主题对比，应命中鸿蒙指南"
   },
   {
     "id": 25,
     "category": "cross_file",
     "knowledgeBase": "default",
-    "question": "鸿蒙白皮书中提到了哪些合作伙伴或生态参与者？",
-    "expectedAnswerContains": "",
-    "expectedSourceFile": "鸿蒙生态应用开发白皮书V2.0.pdf",
-    "notes": "需要综合多个片段"
+    "question": "鸿蒙生态伙伴计划包含哪些参与者？",
+    "expectedAnswerContains": "设备厂商",
+    "expectedSourceFile": "harmony-guide.txt",
+    "notes": "跨文件场景中的生态问题，应命中鸿蒙指南"
   },
   {
     "id": 26,
     "category": "knowledge_isolation",
     "knowledgeBase": "HR",
-    "question": "鸿蒙系统的开发框架是什么？",
+    "question": "鸿蒙应用开发使用的 UI 框架叫什么？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "HR 知识库不应包含鸿蒙相关内容"
+    "notes": "HR 知识库不应包含 default 的鸿蒙内容"
   },
   {
     "id": 27,
     "category": "knowledge_isolation",
     "knowledgeBase": "Finance",
-    "question": "鸿蒙系统的分布式技术有什么优势？",
+    "question": "分布式软总线主要用来解决什么问题？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "Finance 知识库不应包含鸿蒙内容"
+    "notes": "Finance 知识库不应包含 default 的鸿蒙内容"
   },
   {
     "id": 28,
     "category": "knowledge_isolation",
     "knowledgeBase": "Legal",
-    "question": "data.txt 中有什么数据？",
+    "question": "产品数据文件中列出了哪些产品代号？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "Legal 知识库不应包含 default 知识库的内容"
+    "notes": "Legal 知识库不应包含 default 的产品数据"
   },
   {
     "id": 29,
     "category": "knowledge_isolation",
     "knowledgeBase": "HR",
-    "question": "鸿蒙白皮书的版本号是多少？",
+    "question": "HAP 包全称是什么？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "HR 知识库不应包含鸿蒙内容"
+    "notes": "HR 知识库不应包含鸿蒙术语"
   },
   {
     "id": 30,
     "category": "knowledge_isolation",
     "knowledgeBase": "Finance",
-    "question": "鸿蒙系统的应用开发语言 ArkTS 有什么特点？",
+    "question": "ArkTS 有什么特点？",
     "expectedAnswerContains": "未找到",
     "expectedSourceFile": null,
-    "notes": "Finance 知识库不应包含鸿蒙内容"
+    "notes": "Finance 知识库不应包含鸿蒙开发语言"
   }
 ]

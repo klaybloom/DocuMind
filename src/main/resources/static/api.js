@@ -1,126 +1,144 @@
-/**
- * API helper functions — fetch wrappers and SSE handling.
- */
+const API_BASE = '/api/v1';
 
 /**
  * Create an auth-aware fetch wrapper.
  * @param {function} getCredentials - returns current Base64 auth credentials
+ * @param {function} onUnauthorized - called when server returns 401
  * @returns {function} authFetch(url, options)
  */
-export function createAuthFetch(getCredentials) {
+export function createAuthFetch(getCredentials, onUnauthorized) {
     return async function authFetch(url, options = {}) {
         const credentials = getCredentials();
         const headers = { ...(options.headers || {}) };
         if (credentials) {
             headers['Authorization'] = 'Basic ' + credentials;
         }
-        return fetch(url, { ...options, headers });
+        const response = await fetch(url, { ...options, headers });
+        if (response.status === 401 && typeof onUnauthorized === 'function') {
+            onUnauthorized();
+        }
+        return response;
     };
+}
+
+export async function fetchCurrentUser(credentials) {
+    return fetch(`${API_BASE}/auth/me`, {
+        headers: { 'Authorization': 'Basic ' + credentials }
+    });
 }
 
 /**
  * Stream a chat response via SSE.
  */
-export async function streamChatResponse(authFetch, message, sessionId, knowledgeBase, handlers, debug = false) {
-    const body = { message, sessionId, knowledgeBase };
+export async function streamChatResponse(authFetch, request, handlers) {
+    const { message, sessionId, knowledgeBase, knowledgeBases = [], debug = false } = request;
+    const url = debug ? `${API_BASE}/chat/stream?debug=true` : `${API_BASE}/chat/stream`;
+    const selectedKnowledgeBases = Array.isArray(knowledgeBases)
+        ? knowledgeBases.map(value => String(value || '').trim()).filter(Boolean)
+        : [];
+    const body = {
+        message,
+        sessionId,
+        knowledgeBase: selectedKnowledgeBases[0] || knowledgeBase
+    };
+    if (selectedKnowledgeBases.length > 0) {
+        body.knowledgeBases = selectedKnowledgeBases;
+    }
     if (debug) body.debug = true;
 
-    try {
-        const response = await authFetch('/api/chat/stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+    const response = await authFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            handlers.onError?.(new Error(`HTTP ${response.status}: ${errorText}`));
-            return;
-        }
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || '处理请求时发生错误');
+    }
+    if (!response.body) {
+        throw new Error('无法建立连接，请检查后端服务是否启动。');
+    }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep incomplete line in buffer
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() || '';
 
-            for (const line of lines) {
-                if (line.trim()) {
-                    handleStreamEvent(line, handlers);
-                }
-            }
-        }
+        events.forEach(rawEvent => handleStreamEvent(rawEvent, handlers));
+    }
 
-        // Process any remaining buffer
-        if (buffer.trim()) {
-            handleStreamEvent(buffer, handlers);
-        }
-
-        handlers.onComplete?.();
-    } catch (error) {
-        handlers.onError?.(error);
+    buffer += decoder.decode();
+    if (buffer.trim() !== '') {
+        handleStreamEvent(buffer, handlers);
     }
 }
 
 /**
  * Parse and dispatch a single SSE event line.
  */
-function handleStreamEvent(rawEvent, handlers) {
+export function handleStreamEvent(rawEvent, handlers) {
     const event = parseSseEvent(rawEvent);
     if (!event) return;
 
-    switch (event.type) {
-        case 'token':
-            handlers.onToken?.(event.data);
-            break;
-        case 'sources':
-            try {
-                const sources = JSON.parse(event.data);
-                handlers.onSources?.(sources);
-            } catch (e) {
-                console.warn('Failed to parse sources:', e);
+    if (event.name === 'token') {
+        handlers.onToken?.(event.data);
+    }
+    if (event.name === 'sources') {
+        try {
+            const sources = JSON.parse(event.data);
+            if (handlers.onSources && Array.isArray(sources)) {
+                handlers.onSources(sources);
             }
-            break;
-        case 'done':
-            handlers.onDone?.();
-            break;
-        case 'error':
-            handlers.onError?.(new Error(event.data));
-            break;
-        case 'debug':
-            if (handlers.onDebug) {
-                try {
-                    handlers.onDebug(JSON.parse(event.data));
-                } catch (e) {
-                    handlers.onDebug(event.data);
-                }
-            }
-            break;
+        } catch (e) {
+            console.error('Failed to parse sources event:', e);
+        }
+    }
+    if (event.name === 'debug') {
+        try {
+            const debugInfo = JSON.parse(event.data);
+            handlers.onDebug?.(debugInfo);
+        } catch (e) {
+            console.error('Failed to parse debug event:', e);
+        }
+    }
+    if (event.name === 'error') {
+        handlers.onError?.(event.data || '处理请求时发生错误');
     }
 }
 
+export async function fetchJson(authFetch, url, options = {}) {
+    const response = await authFetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    return { response, data };
+}
+
+export function apiPath(path) {
+    return `${API_BASE}${path}`;
+}
+
 /**
- * Parse an SSE event string into { type, data }.
+ * Parse an SSE event string into { name, data }.
  */
 export function parseSseEvent(rawEvent) {
-    const lines = rawEvent.split('\n');
-    let eventType = 'message';
-    let data = '';
+    let name = 'message';
+    const data = [];
 
-    for (const line of lines) {
+    rawEvent.split(/\r?\n/).forEach(line => {
         if (line.startsWith('event:')) {
-            eventType = line.substring(6).trim();
+            name = line.slice(6).trim();
         } else if (line.startsWith('data:')) {
-            data += (data ? '\n' : '') + line.substring(5).trim();
+            data.push(line.slice(5).replace(/^ /, ''));
         }
-    }
+    });
 
-    if (!data) return null;
-    return { type: eventType, data };
+    if (data.length === 0 && name === 'message') return null;
+    return { name, data: data.join('\n') };
 }

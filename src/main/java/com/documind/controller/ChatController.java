@@ -25,6 +25,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping("/api/v1/chat")
 public class ChatController {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
@@ -69,9 +70,11 @@ public class ChatController {
                                              Principal principal,
                                              Authentication authentication) {
         try {
+            List<String> knowledgeBases = requestedKnowledgeBases(request);
+            String knowledgeBaseSelection = String.join(",", knowledgeBases);
             logger.debug("Received chat request, messageLength={}, knowledgeBase={}",
-                    safeLength(request.getMessage()), request.getKnowledgeBase());
-            if (!knowledgeBaseAccessService.canAccess(authentication, request.getKnowledgeBase())) {
+                    safeLength(request.getMessage()), knowledgeBaseSelection);
+            if (!knowledgeBaseAccessService.canAccessAll(authentication, knowledgeBases)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ChatResponse.error("当前账号没有访问该知识库的权限"));
             }
@@ -85,14 +88,14 @@ public class ChatController {
             auditService.record(
                     actor(principal),
                     AuditService.ACTION_CHAT_REQUEST,
-                    request.getKnowledgeBase(),
+                    knowledgeBaseSelection,
                     null,
                     chatAuditDetails(request, false)
             );
             RagAnswer answer = ragService.ask(
                     request.getMessage(),
                     scopedSessionId(principal, request.getSessionId()),
-                    request.getKnowledgeBase(),
+                    knowledgeBaseSelection,
                     debug
             );
             return ResponseEntity.ok(ChatResponse.success(answer));
@@ -109,7 +112,9 @@ public class ChatController {
                                  Principal principal,
                                  Authentication authentication) {
         SseEmitter emitter = new SseEmitter(streamTimeoutMillis());
-        if (!knowledgeBaseAccessService.canAccess(authentication, request.getKnowledgeBase())) {
+        List<String> knowledgeBases = requestedKnowledgeBases(request);
+        String knowledgeBaseSelection = String.join(",", knowledgeBases);
+        if (!knowledgeBaseAccessService.canAccessAll(authentication, knowledgeBases)) {
             sendEmitterEvent(emitter, "error", "当前账号没有访问该知识库的权限");
             emitter.complete();
             return emitter;
@@ -124,7 +129,7 @@ public class ChatController {
         auditService.record(
                 actor(principal),
                 AuditService.ACTION_CHAT_REQUEST,
-                request.getKnowledgeBase(),
+                knowledgeBaseSelection,
                 null,
                 chatAuditDetails(request, true)
         );
@@ -133,7 +138,7 @@ public class ChatController {
             CompletableFuture.runAsync(() -> ragService.askStream(
                     request.getMessage(),
                     scopedSessionId(principal, request.getSessionId()),
-                    request.getKnowledgeBase(),
+                    knowledgeBaseSelection,
                     token -> sendEmitterEvent(emitter, "token", token),
                     sources -> sendSourcesEvent(emitter, sources),
                     debugInfo -> sendDebugEvent(emitter, debugInfo),
@@ -213,10 +218,29 @@ public class ChatController {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("streaming", streaming);
         details.put("messageLength", safeLength(request.getMessage()));
+        details.put("knowledgeBases", requestedKnowledgeBases(request));
         if (request.getSessionId() != null && !request.getSessionId().trim().isEmpty()) {
             details.put("sessionId", request.getSessionId());
         }
         return details;
+    }
+
+    private List<String> requestedKnowledgeBases(ChatRequest request) {
+        List<String> selected = new ArrayList<>();
+        if (request.getKnowledgeBases() != null) {
+            request.getKnowledgeBases().stream()
+                    .filter(value -> value != null && !value.trim().isEmpty())
+                    .map(String::trim)
+                    .distinct()
+                    .forEach(selected::add);
+        }
+        if (selected.isEmpty() && request.getKnowledgeBase() != null && !request.getKnowledgeBase().trim().isEmpty()) {
+            selected.add(request.getKnowledgeBase().trim());
+        }
+        if (selected.isEmpty()) {
+            selected.add("default");
+        }
+        return selected;
     }
 
     private void recordRateLimitedChat(Principal principal,
@@ -229,7 +253,7 @@ public class ChatController {
         auditService.record(
                 actor(principal),
                 AuditService.ACTION_RATE_LIMITED_CHAT_REQUEST,
-                request.getKnowledgeBase(),
+                String.join(",", requestedKnowledgeBases(request)),
                 null,
                 details
         );

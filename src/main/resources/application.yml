@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  messages:
+    basename: messages
+    fallback-to-system-locale: false
   servlet:
     multipart:
       max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
@@ -62,6 +65,17 @@ app:
     user-password: ${DOCUMIND_USER_PASSWORD:}
     user-knowledge-bases: ${DOCUMIND_USER_KNOWLEDGE_BASES:default}
     min-password-length: ${DOCUMIND_MIN_PASSWORD_LENGTH:12}
+
+# Actuator / Observability
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
 # Logging
 logging:
   level:
