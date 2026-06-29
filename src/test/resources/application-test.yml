@@ -12,7 +12,7 @@ spring:
 app:
   documents-path: ${java.io.tmpdir}/documind-test
   deepseek:
-    api-key: REDACTED_DEEPSEEK_API_KEY
+    api-key: test-dummy-key-for-integration-tests
     base-url: https://api.deepseek.com
     model: deepseek-v4-flash
   security:

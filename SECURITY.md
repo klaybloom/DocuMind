@@ -28,7 +28,7 @@ cp src/main/resources/application-local.yml.template src/main/resources/applicat
 ```yaml
 app:
   deepseek:
-    api-key: REDACTED_DEEPSEEK_API_KEY
+    api-key: ${DEEPSEEK_API_KEY}
   security:
     admin-username: admin
     admin-password: change_this_password
