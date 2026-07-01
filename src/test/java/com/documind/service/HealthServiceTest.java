@@ -67,7 +67,7 @@ class HealthServiceTest {
     @Test
     void readinessIsDegradedWhenConfigurationIsPresentButNoDocumentsExist() throws Exception {
         Files.createDirectories(tempDir);
-        ReflectionTestUtils.setField(healthService, "apiKey", "sk-test");
+        ReflectionTestUtils.setField(healthService, "apiKey", "configured-for-test-profile");
 
         HealthCheckResponse response = healthService.readiness();
 
@@ -93,7 +93,7 @@ class HealthServiceTest {
     @Test
     void readinessNormalizesInvalidRuntimeConfigurationForDisplay() throws Exception {
         Files.createDirectories(tempDir);
-        ReflectionTestUtils.setField(healthService, "apiKey", "sk-test");
+        ReflectionTestUtils.setField(healthService, "apiKey", "configured-for-test-profile");
         ReflectionTestUtils.setField(healthService, "deepSeekTimeoutSeconds", 0L);
         ReflectionTestUtils.setField(healthService, "chatRateLimitPerMinute", -1);
         ReflectionTestUtils.setField(healthService, "chatStreamTimeoutSeconds", 1L);

@@ -37,8 +37,8 @@ DocuMind 是一个基于 RAG 的智能文档问答助手。用户上传文档后
 推荐用环境变量注入：
 
 ```bash
-export DEEPSEEK_API_KEY=your_key_here
-export DOCUMIND_ADMIN_PASSWORD=your_secure_password
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 ```
 
 本地开发也可以复制模板：

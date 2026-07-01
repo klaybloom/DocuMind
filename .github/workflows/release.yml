@@ -80,8 +80,8 @@ jobs:
             docker pull ${{ steps.image.outputs.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
             docker run -d -p 8080:8080 \
               -v /opt/documind/documents:/data/documents \
-              -e DEEPSEEK_API_KEY=your_key \
-              -e DOCUMIND_ADMIN_PASSWORD=your_password \
+              -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
+              -e DOCUMIND_ADMIN_PASSWORD="$DOCUMIND_ADMIN_PASSWORD" \
               ${{ steps.image.outputs.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
             ```
 

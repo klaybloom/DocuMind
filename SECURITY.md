@@ -9,8 +9,8 @@
 在启动应用前设置环境变量：
 
 ```bash
-export DEEPSEEK_API_KEY=your_actual_api_key_here
-export DOCUMIND_ADMIN_PASSWORD=change_this_password
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 export DOCUMIND_STALE_DAYS=180
 mvn spring-boot:run
 ```
@@ -31,7 +31,7 @@ app:
     api-key: ${DEEPSEEK_API_KEY}
   security:
     admin-username: admin
-    admin-password: change_this_password
+    admin-password: ${DOCUMIND_ADMIN_PASSWORD}
 ```
 
 3. 启动应用，并显式启用 `local` profile：
@@ -44,7 +44,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 ### 方法 3：使用 Spring Boot 启动参数
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.arguments="--app.deepseek.api-key=your_actual_api_key_here --app.security.admin-password=change_this_password"
+mvn spring-boot:run -Dspring-boot.run.arguments="--app.deepseek.api-key=${DEEPSEEK_API_KEY} --app.security.admin-password=${DOCUMIND_ADMIN_PASSWORD}"
 ```
 
 ## 🔒 其他安全配置
@@ -60,7 +60,7 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--app.deepseek.api-key=your_act
 
 ```bash
 export DOCUMIND_USER_USERNAME=user
-export DOCUMIND_USER_PASSWORD=user_password
+export DOCUMIND_USER_PASSWORD="<reader-password-from-secret-store>"
 export DOCUMIND_USER_KNOWLEDGE_BASES=default
 export DOCUMIND_MIN_PASSWORD_LENGTH=12
 ```

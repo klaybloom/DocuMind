@@ -28,11 +28,11 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 
 | 变量 | 必填 | 示例 | 说明 |
 | --- | --- | --- | --- |
-| `DEEPSEEK_API_KEY` | 是 | `sk-...` | DeepSeek API Key |
-| `DOCUMIND_ADMIN_PASSWORD` | 是 | `change_this_password` | 管理员密码 |
+| `DEEPSEEK_API_KEY` | 是 | 由密钥管理器注入 | DeepSeek API Key |
+| `DOCUMIND_ADMIN_PASSWORD` | 是 | 由密钥管理器注入 | 管理员密码 |
 | `DOCUMIND_ADMIN_USERNAME` | 否 | `admin` | 管理员用户名，默认 `admin` |
 | `DOCUMIND_USER_USERNAME` | 否 | `reader` | 只读问答账号，不配置则不启用 |
-| `DOCUMIND_USER_PASSWORD` | 否 | `reader_password` | 只读问答账号密码 |
+| `DOCUMIND_USER_PASSWORD` | 否 | 由密钥管理器注入 | 只读问答账号密码 |
 | `DOCUMIND_USER_KNOWLEDGE_BASES` | 否 | `default,HR` | 普通用户可访问的知识库，默认 `default`，`*` 表示全部 |
 | `DOCUMIND_MIN_PASSWORD_LENGTH` | 否 | `12` | 管理员和普通用户密码最小长度，默认 `12`，应用内部最低接受 `8` |
 | `DOCUMIND_STALE_DAYS` | 否 | `180` | 文档过期提醒天数 |
@@ -86,9 +86,9 @@ mkdir -p /opt/documind/documents
 启动示例：
 
 ```bash
-export DEEPSEEK_API_KEY=your_actual_api_key_here
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
 export DOCUMIND_ADMIN_USERNAME=admin
-export DOCUMIND_ADMIN_PASSWORD=change_this_password
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 export DOCUMIND_MIN_PASSWORD_LENGTH=12
 export DOCUMIND_STALE_DAYS=180
 export DOCUMIND_AUDIT_MAX_EVENTS=10000
@@ -132,7 +132,7 @@ curl -i http://127.0.0.1:8080/api/health
 readiness 需要管理员账号：
 
 ```bash
-curl -u admin:change_this_password \
+curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
   http://127.0.0.1:8080/api/health/readiness
 ```
 
@@ -237,7 +237,7 @@ echo "$DEEPSEEK_API_KEY"
 至少需要配置管理员密码：
 
 ```bash
-export DOCUMIND_ADMIN_PASSWORD=change_this_password
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 ```
 
 ### readiness 显示 documents-storage DOWN
@@ -260,7 +260,7 @@ ls -ld /opt/documind/documents
 先查：
 
 ```bash
-curl -u admin:change_this_password \
+curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
   http://127.0.0.1:8080/api/files/status
 ```
 
@@ -269,7 +269,7 @@ curl -u admin:change_this_password \
 上传成功后应用会刷新索引。若仍旧异常，管理员可手动刷新：
 
 ```bash
-curl -u admin:change_this_password \
+curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
   -X POST http://127.0.0.1:8080/api/files/refresh
 ```
 

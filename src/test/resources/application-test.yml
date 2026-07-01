@@ -1,4 +1,4 @@
-# Test profile: H2 in-memory, dummy credentials
+# Test profile: H2 in-memory with non-production credentials.
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
@@ -12,10 +12,10 @@ spring:
 app:
   documents-path: ${java.io.tmpdir}/documind-test
   deepseek:
-    api-key: test-dummy-key-for-integration-tests
+    api-key: configured-for-test-profile
     base-url: https://api.deepseek.com
     model: deepseek-v4-flash
   security:
     admin-username: admin
-    admin-password: test-admin-password-123
+    admin-password: test-profile-admin-password
     min-password-length: 8

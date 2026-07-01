@@ -133,8 +133,8 @@ cd DocuMind
 
 ```bash
 # 必填
-export DEEPSEEK_API_KEY=your_actual_api_key_here
-export DOCUMIND_ADMIN_PASSWORD=your_secure_password
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 
 # 可选（以下为默认值）
 export DEEPSEEK_TIMEOUT_SECONDS=60
@@ -153,7 +153,7 @@ cp src/main/resources/application-local.yml.template src/main/resources/applicat
 
 ```bash
 export DOCUMIND_USER_USERNAME=user
-export DOCUMIND_USER_PASSWORD=user_password
+export DOCUMIND_USER_PASSWORD="<reader-password-from-secret-store>"
 export DOCUMIND_USER_KNOWLEDGE_BASES=default
 ```
 
@@ -318,8 +318,8 @@ mvn test
 
 | 变量名 | 说明 | 示例 |
 |--------|------|------|
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | `sk-xxx` |
-| `DOCUMIND_ADMIN_PASSWORD` | 管理员密码（≥12 字符） | `your_secure_password` |
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | 由环境变量或密钥管理器注入 |
+| `DOCUMIND_ADMIN_PASSWORD` | 管理员密码（≥12 字符） | 由环境变量或密钥管理器注入 |
 
 ### 可选变量
 

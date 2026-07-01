@@ -151,7 +151,7 @@
 
 **方法 1：环境变量**
 ```bash
-export DEEPSEEK_API_KEY=your_api_key_here
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
 mvn spring-boot:run
 ```
 
