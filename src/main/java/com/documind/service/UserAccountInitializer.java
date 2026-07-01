@@ -69,12 +69,16 @@ public class UserAccountInitializer {
             }
             validatePassword("DOCUMIND_USER_PASSWORD", userPassword);
 
-            UserAccount user = repository.findByUsername(userUsername).orElseGet(() -> new UserAccount());
+            var existingUser = repository.findByUsername(userUsername);
+            boolean newUser = existingUser.isEmpty();
+            UserAccount user = existingUser.orElseGet(() -> new UserAccount());
             user.setUsername(userUsername);
             user.setPassword(passwordEncoder.encode(userPassword));
             user.setRole("USER");
             user.setEnabled(true);
-            user.setKnowledgeBases(userKnowledgeBases);
+            if (newUser) {
+                user.setKnowledgeBases(userKnowledgeBases);
+            }
             repository.save(user);
             logger.info("User account initialized: {}", userUsername);
         }

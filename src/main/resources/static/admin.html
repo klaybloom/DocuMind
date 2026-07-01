@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuMind | 后台管理</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>D</text></svg>">
+    <link rel="stylesheet" href="style.css?v=11">
+</head>
+
+<body>
+    <div class="admin-shell">
+        <aside class="admin-sidebar">
+            <a class="sidebar-brand admin-brand" href="index.html">
+                <span class="brand-mark">D</span>
+                <span>DocuMind</span>
+            </a>
+            <nav class="admin-nav" aria-label="后台导航">
+                <button class="admin-nav-btn active" type="button" data-admin-tab="users" id="admin-users-tab-btn">
+                    <i data-lucide="users"></i>
+                    用户
+                </button>
+                <button class="admin-nav-btn" type="button" data-admin-tab="knowledge-bases">
+                    <i data-lucide="database"></i>
+                    知识库
+                </button>
+                <button class="admin-nav-btn" type="button" data-admin-tab="documents">
+                    <i data-lucide="files"></i>
+                    文档
+                </button>
+                <button class="admin-nav-btn" type="button" data-admin-tab="gaps">
+                    <i data-lucide="circle-help"></i>
+                    缺口
+                </button>
+                <button class="admin-nav-btn" type="button" data-admin-tab="audit">
+                    <i data-lucide="list-checks"></i>
+                    审计
+                </button>
+            </nav>
+            <div class="admin-sidebar-footer">
+                <a class="sidebar-action-btn secondary" href="index.html">
+                    <i data-lucide="message-square"></i>
+                    返回问答
+                </a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <header class="admin-topbar">
+                <div>
+                    <h1>后台管理</h1>
+                    <p id="admin-user-label">未登录</p>
+                </div>
+                <button class="icon-text-btn" id="admin-refresh-btn" type="button">
+                    <i data-lucide="refresh-cw"></i>
+                    刷新
+                </button>
+            </header>
+
+            <div class="admin-alert hidden" id="admin-alert"></div>
+
+            <section class="admin-tab active" id="admin-tab-users">
+                <section class="admin-panel admin-table-panel">
+                    <div class="admin-table-toolbar">
+                        <div>
+                            <h2>用户列表</h2>
+                            <p>管理员可创建用户、设置角色和知识库访问权限。</p>
+                        </div>
+                        <div class="admin-toolbar-actions">
+                            <input id="user-search" type="search" placeholder="搜索用户">
+                            <button class="icon-text-btn" id="open-create-user" type="button">
+                                <i data-lucide="user-plus"></i>
+                                新增
+                            </button>
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>用户</th>
+                                    <th>角色</th>
+                                    <th>状态</th>
+                                    <th>访问知识库</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="file-empty" id="user-empty">暂无用户</div>
+                </section>
+            </section>
+
+            <section class="admin-tab" id="admin-tab-knowledge-bases">
+                <section class="admin-panel admin-table-panel">
+                    <div class="admin-table-toolbar">
+                        <div>
+                            <h2>知识库列表</h2>
+                            <p>负责人可分发访问权限、添加负责人或转移自己负责的知识库。</p>
+                        </div>
+                        <div class="admin-toolbar-actions">
+                            <input id="kb-search" type="search" placeholder="搜索知识库">
+                            <button class="icon-text-btn" id="open-create-kb" type="button">
+                                <i data-lucide="plus"></i>
+                                新增
+                            </button>
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>知识库</th>
+                                    <th>负责人</th>
+                                    <th>访问用户</th>
+                                    <th>文档状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kb-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="file-empty" id="kb-empty">暂无知识库</div>
+                </section>
+            </section>
+
+            <section class="admin-tab" id="admin-tab-documents">
+                <section class="admin-panel admin-table-panel">
+                    <div class="admin-table-toolbar">
+                        <div>
+                            <h2>文档列表</h2>
+                            <p>上传、下载、删除和重新索引可管理知识库里的文档。</p>
+                        </div>
+                        <div class="admin-toolbar-actions">
+                            <select id="document-kb-filter"></select>
+                            <input id="document-search" type="search" placeholder="搜索文档">
+                            <button class="icon-text-btn" id="open-upload-document" type="button">
+                                <i data-lucide="upload-cloud"></i>
+                                上传
+                            </button>
+                            <button class="icon-text-btn" id="reindex-all-btn" type="button">
+                                <i data-lucide="rotate-cw"></i>
+                                全量索引
+                            </button>
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>文档</th>
+                                    <th>知识库</th>
+                                    <th>负责人</th>
+                                    <th>状态</th>
+                                    <th>上传人</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="document-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="file-empty" id="document-empty">暂无文档</div>
+                </section>
+            </section>
+
+            <section class="admin-tab" id="admin-tab-gaps">
+                <section class="admin-panel admin-table-panel">
+                    <div class="admin-table-toolbar">
+                        <div>
+                            <h2>知识缺口</h2>
+                            <p>查看和处理可管理知识库里的未命中问题。</p>
+                        </div>
+                        <div class="admin-toolbar-actions">
+                            <select id="gap-kb-filter"></select>
+                            <input id="gap-search" type="search" placeholder="搜索问题">
+                            <button class="icon-text-btn" id="generate-faq-btn" type="button">
+                                <i data-lucide="file-text"></i>
+                                FAQ 草稿
+                            </button>
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>问题</th>
+                                    <th>知识库</th>
+                                    <th>次数</th>
+                                    <th>最近提问</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gap-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="gap-empty" id="gap-empty">暂无知识缺口</div>
+                    <textarea class="faq-draft hidden" id="faq-draft" readonly></textarea>
+                </section>
+            </section>
+
+            <section class="admin-tab" id="admin-tab-audit">
+                <section class="admin-panel admin-table-panel">
+                    <div class="admin-table-toolbar">
+                        <div>
+                            <h2>最近审计</h2>
+                            <p>管理员查看全局记录，负责人查看自己知识库相关记录。</p>
+                        </div>
+                        <div class="admin-toolbar-actions">
+                            <input id="audit-search" type="search" placeholder="搜索操作">
+                        </div>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>操作</th>
+                                    <th>账号</th>
+                                    <th>知识库</th>
+                                    <th>对象</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="audit-empty" id="audit-empty">暂无审计记录</div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="admin-modal" aria-hidden="true">
+        <section class="document-modal admin-form-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h2 id="admin-modal-title">编辑</h2>
+                    <p id="admin-modal-subtitle"></p>
+                </div>
+                <button class="icon-btn" id="close-admin-modal" type="button" aria-label="关闭">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="admin-modal-body"></div>
+        </section>
+    </div>
+
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+    <script type="module" src="admin.js?v=2"></script>
+</body>
+
+</html>

@@ -71,7 +71,10 @@ export function actionText(action) {
         DELETE_DOCUMENT: '删除文档',
         REFRESH_INDEX: '刷新索引',
         GENERATE_FAQ_DRAFT: '生成 FAQ 草稿',
-        RESOLVE_KNOWLEDGE_GAP: '处理知识缺口'
+        RESOLVE_KNOWLEDGE_GAP: '处理知识缺口',
+        CREATE_USER: '创建用户',
+        UPDATE_USER: '更新用户',
+        RESET_USER_PASSWORD: '重置密码'
     };
     return labels[action] || action || '未知操作';
 }

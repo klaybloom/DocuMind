@@ -422,8 +422,9 @@ public class DocumentService {
         }
 
         try {
+            String kb = sanitizeKnowledgeBase(knowledgeBase);
             if (gapRepository != null) {
-                return gapRepository.findById(gapId.trim())
+                return gapRepository.findByKnowledgeBaseAndId(kb, gapId.trim())
                         .map(entity -> {
                             gapRepository.delete(entity);
                             return gapToDto(entity);

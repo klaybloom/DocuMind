@@ -4,6 +4,7 @@ import com.documind.exception.InvalidFileException;
 import com.documind.service.AuditService;
 import com.documind.service.DocumentService;
 import com.documind.service.KnowledgeBaseAccessService;
+import com.documind.service.KnowledgeBaseManagementService;
 import com.documind.service.RagService;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
@@ -12,17 +13,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Principal;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,6 +43,7 @@ class FileControllerHttpTest {
     private FakeDocumentService documentService;
     private FakeRagService ragService;
     private RecordingAuditService auditService;
+    private KnowledgeBaseManagementService managementService;
 
     @TempDir
     Path tempDir;
@@ -43,11 +53,15 @@ class FileControllerHttpTest {
         documentService = new FakeDocumentService();
         ragService = new FakeRagService(documentService);
         auditService = new RecordingAuditService();
+        KnowledgeBaseAccessService accessService = mock(KnowledgeBaseAccessService.class);
+        managementService = mock(KnowledgeBaseManagementService.class);
+        when(managementService.canManage(any(), anyString())).thenReturn(true);
         FileController controller = new FileController(
                 documentService,
                 ragService,
                 auditService,
-                new KnowledgeBaseAccessService(documentService)
+                accessService,
+                managementService
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
@@ -185,9 +199,61 @@ class FileControllerHttpTest {
         assertThat(auditService.recordCalls).isZero();
     }
 
+    @Test
+    void ownerCanUploadDocumentToManagedKnowledgeBase() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "policy.txt",
+                "text/plain",
+                "员工制度".getBytes(StandardCharsets.UTF_8)
+        );
 
-    private Principal named(String name) {
-        return () -> name;
+        mockMvc.perform(multipart("/api/v1/files/upload")
+                        .file(file)
+                .param("knowledgeBase", "HR")
+                        .principal(named("owner", "ROLE_USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("文件上传成功"));
+
+        assertThat(documentService.storeCalls).isEqualTo(1);
+        assertThat(ragService.reindexCalls).isEqualTo(1);
+        assertThat(auditService.action).isEqualTo(AuditService.ACTION_UPLOAD_DOCUMENT);
+        assertThat(auditService.knowledgeBase).isEqualTo("HR");
+    }
+
+    @Test
+    void nonOwnerCannotUploadDocumentToUnmanagedKnowledgeBase() throws Exception {
+        when(managementService.canManage(any(), anyString())).thenReturn(false);
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "policy.txt",
+                "text/plain",
+                "员工制度".getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart("/api/v1/files/upload")
+                        .file(file)
+                .param("knowledgeBase", "HR")
+                        .principal(named("reader", "ROLE_USER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("当前账号没有该知识库管理权限"));
+
+        assertThat(documentService.storeCalls).isZero();
+        assertThat(ragService.reindexCalls).isZero();
+        assertThat(auditService.recordCalls).isZero();
+    }
+
+
+    private Authentication named(String name) {
+        return named(name, "ROLE_ADMIN");
+    }
+
+    private Authentication named(String name, String role) {
+        return new UsernamePasswordAuthenticationToken(
+                name,
+                "password",
+                java.util.List.of(new SimpleGrantedAuthority(role))
+        );
     }
 
     static class FakeDocumentService extends DocumentService {
@@ -200,6 +266,7 @@ class FileControllerHttpTest {
         private RuntimeException faqError;
         private boolean deleteResult;
         private int deleteCalls;
+        private int storeCalls;
 
         @Override
         public String normalizeKnowledgeBase(String knowledgeBase) {
@@ -246,12 +313,22 @@ class FileControllerHttpTest {
             deleteCalls++;
             return deleteResult;
         }
+
+        @Override
+        public synchronized String storeFile(org.springframework.web.multipart.MultipartFile file,
+                                             String knowledgeBase,
+                                             String owner,
+                                             String uploadedBy) {
+            storeCalls++;
+            return file.getOriginalFilename();
+        }
     }
 
     static class FakeRagService extends RagService {
 
         private int refreshCalls;
         private int removeCalls;
+        private int reindexCalls;
 
         FakeRagService(DocumentService documentService) {
             super(null, null, null, new InMemoryEmbeddingStore<TextSegment>(), documentService, null);
@@ -265,6 +342,11 @@ class FileControllerHttpTest {
         @Override
         public synchronized void removeDocument(String filename, String knowledgeBase) {
             removeCalls++;
+        }
+
+        @Override
+        public synchronized void reindexDocument(String filename, String knowledgeBase) {
+            reindexCalls++;
         }
     }
 

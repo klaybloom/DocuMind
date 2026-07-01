@@ -25,12 +25,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health").permitAll()
                         .requestMatchers("/api/v1/health/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/auth/me").permitAll()
+                        .requestMatchers("/api/v1/admin/users/options").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/v1/admin/users/**", "/api/v1/admin/users").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/knowledge-bases/**", "/api/v1/admin/knowledge-bases").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/v1/files/knowledge-bases").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/v1/files/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/files/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/v1/chat/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/", "/index.html", "/app.js", "/api.js", "/utils.js",
+                                "/admin.html", "/admin.js",
                                 "/style.css", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )

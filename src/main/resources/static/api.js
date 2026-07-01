@@ -124,6 +124,113 @@ export function apiPath(path) {
     return `${API_BASE}${path}`;
 }
 
+export async function readApiError(response, fallback = '请求失败') {
+    const data = await response.json().catch(() => ({}));
+    return data.error || data.message || fallback;
+}
+
+export async function listAdminUsers(authFetch) {
+    const response = await authFetch(apiPath('/admin/users'));
+    if (!response.ok) {
+        throw new Error(await readApiError(response, '用户列表加载失败'));
+    }
+    return response.json();
+}
+
+export async function listUserOptions(authFetch) {
+    const response = await authFetch(apiPath('/admin/users/options'));
+    if (!response.ok) {
+        throw new Error(await readApiError(response, '用户选项加载失败'));
+    }
+    return response.json();
+}
+
+export async function listAdminKnowledgeBases(authFetch) {
+    const response = await authFetch(apiPath('/admin/knowledge-bases'));
+    if (!response.ok) {
+        throw new Error(await readApiError(response, '知识库加载失败'));
+    }
+    return response.json();
+}
+
+export async function createKnowledgeBase(authFetch, payload) {
+    return submitJsonRequest(authFetch, apiPath('/admin/knowledge-bases'), 'POST', payload, '知识库创建失败');
+}
+
+export async function setKnowledgeBaseOwners(authFetch, knowledgeBase, owners) {
+    return submitJsonRequest(
+        authFetch,
+        apiPath(`/admin/knowledge-bases/${encodeURIComponent(knowledgeBase)}/owners`),
+        'PUT',
+        { owners },
+        '负责人保存失败'
+    );
+}
+
+export async function addKnowledgeBaseOwners(authFetch, knowledgeBase, owners) {
+    return submitJsonRequest(
+        authFetch,
+        apiPath(`/admin/knowledge-bases/${encodeURIComponent(knowledgeBase)}/owners`),
+        'POST',
+        { owners },
+        '负责人添加失败'
+    );
+}
+
+export async function selfTransferKnowledgeBase(authFetch, knowledgeBase, owners) {
+    return submitJsonRequest(
+        authFetch,
+        apiPath(`/admin/knowledge-bases/${encodeURIComponent(knowledgeBase)}/owners/self-transfer`),
+        'PUT',
+        { owners },
+        '负责人转移失败'
+    );
+}
+
+export async function setKnowledgeBaseMembers(authFetch, knowledgeBase, members) {
+    return submitJsonRequest(
+        authFetch,
+        apiPath(`/admin/knowledge-bases/${encodeURIComponent(knowledgeBase)}/members`),
+        'PUT',
+        { members },
+        '访问用户保存失败'
+    );
+}
+
+export async function createAdminUser(authFetch, payload) {
+    return submitAdminUserRequest(authFetch, apiPath('/admin/users'), 'POST', payload, '用户创建失败');
+}
+
+export async function updateAdminUser(authFetch, userId, payload) {
+    return submitAdminUserRequest(authFetch, apiPath(`/admin/users/${encodeURIComponent(userId)}`), 'PUT', payload, '用户更新失败');
+}
+
+export async function resetAdminUserPassword(authFetch, userId, password) {
+    return submitAdminUserRequest(
+        authFetch,
+        apiPath(`/admin/users/${encodeURIComponent(userId)}/password`),
+        'PUT',
+        { password },
+        '密码重置失败'
+    );
+}
+
+async function submitAdminUserRequest(authFetch, url, method, payload, fallback) {
+    return submitJsonRequest(authFetch, url, method, payload, fallback);
+}
+
+async function submitJsonRequest(authFetch, url, method, payload, fallback) {
+    const response = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        throw new Error(await readApiError(response, fallback));
+    }
+    return response.json();
+}
+
 /**
  * Parse an SSE event string into { name, data }.
  */

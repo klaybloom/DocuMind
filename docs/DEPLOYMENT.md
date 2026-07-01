@@ -120,7 +120,7 @@ http://服务器地址:8080
 存活检查无需登录：
 
 ```bash
-curl -i http://127.0.0.1:8080/api/health
+curl -i http://127.0.0.1:8080/api/v1/health
 ```
 
 预期返回 `200`，响应体类似：
@@ -133,7 +133,7 @@ readiness 需要管理员账号：
 
 ```bash
 curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
-  http://127.0.0.1:8080/api/health/readiness
+  http://127.0.0.1:8080/api/v1/health/readiness
 ```
 
 重点看：
@@ -153,7 +153,7 @@ curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
 需要保留：
 
 - `Authorization` header，用于 Basic Auth。
-- 流式问答接口 `/api/chat/stream` 的长连接能力。
+- 流式问答接口 `/api/v1/chat/stream` 的长连接能力。
 - 上传接口的请求体大小，需要不小于 `DOCUMIND_MAX_FILE_SIZE`。
 
 Nginx 示例片段：
@@ -204,21 +204,22 @@ documents/
 3. 停止旧进程。
 4. 替换 JAR。
 5. 使用相同环境变量、`app.documents-path` 和 `DOCUMIND_DB_PATH` 启动。
-6. 调用 `/api/health/readiness` 检查状态。
+6. 调用 `/api/v1/health/readiness` 检查状态。
 7. 用固定问题集执行一次 RAG 质量检查，参考 [RAG_EVALUATION.md](./RAG_EVALUATION.md)。
 
 ## 9. 日常运营
 
 管理员可以定期查看：
 
-- `/api/files/status`：每个知识库的文件、索引、过期、缺口统计
-- `/api/files/gaps?knowledgeBase=HR`：未命中文档的问题
-- `/api/files/faq-draft?knowledgeBase=HR`：根据缺口生成 FAQ 草稿
-- `/api/files/{filename}/download?knowledgeBase=HR`：下载原始文档
-- `/api/files/gaps/{gapId}?knowledgeBase=HR`：标记知识缺口为已处理
-- `/api/files/audit?limit=100`：最近操作记录
+- `/admin.html`：后台管理页，包含用户权限、知识库文档、知识缺口和审计入口
+- `/api/v1/files/status`：每个知识库的文件、索引、过期、缺口统计
+- `/api/v1/files/gaps?knowledgeBase=HR`：未命中文档的问题
+- `/api/v1/files/faq-draft?knowledgeBase=HR`：根据缺口生成 FAQ 草稿
+- `/api/v1/files/{filename}/download?knowledgeBase=HR`：下载原始文档
+- `/api/v1/files/gaps/{gapId}?knowledgeBase=HR`：标记知识缺口为已处理
+- `/api/v1/files/audit?limit=100`：最近操作记录
 
-用户删除对话记录时，前端会调用 `/api/chat/sessions/{sessionId}` 清理服务端会话记忆。
+用户删除对话记录时，前端会调用 `/api/v1/chat/sessions/{sessionId}` 清理服务端会话记忆。
 
 文档过期提醒不会自动删除文件。负责人需要定期确认过期文档是否仍有效。
 
@@ -261,7 +262,7 @@ ls -ld /opt/documind/documents
 
 ```bash
 curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
-  http://127.0.0.1:8080/api/files/status
+  http://127.0.0.1:8080/api/v1/files/status
 ```
 
 ### 上传后回答仍旧
@@ -270,7 +271,7 @@ curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
 
 ```bash
 curl -u "admin:${DOCUMIND_ADMIN_PASSWORD}" \
-  -X POST http://127.0.0.1:8080/api/files/refresh
+  -X POST http://127.0.0.1:8080/api/v1/files/refresh
 ```
 
 ### 审计日志增长过快

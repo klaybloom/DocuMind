@@ -1,5 +1,6 @@
 package com.documind.controller;
 
+import com.documind.service.KnowledgeBaseManagementService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -16,6 +17,12 @@ import java.util.Map;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
+    private final KnowledgeBaseManagementService knowledgeBaseManagementService;
+
+    public AuthController(KnowledgeBaseManagementService knowledgeBaseManagementService) {
+        this.knowledgeBaseManagementService = knowledgeBaseManagementService;
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -31,6 +38,9 @@ public class AuthController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("username", auth.getName());
         body.put("roles", roles);
+        List<String> managedKnowledgeBases = knowledgeBaseManagementService.manageableKnowledgeBases(auth);
+        body.put("managedKnowledgeBases", managedKnowledgeBases);
+        body.put("canManageKnowledgeBases", roles.contains("ADMIN") || !managedKnowledgeBases.isEmpty());
         return ResponseEntity.ok(body);
     }
 }
