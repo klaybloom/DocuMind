@@ -37,6 +37,32 @@ class SecurityConfigTest {
     }
 
     @Test
+    void initializerDoesNotOverwriteExistingRegularUserKnowledgeBases() {
+        UserAccountRepository repo = mock(UserAccountRepository.class);
+        PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        UserAccount existingUser = new UserAccount();
+        existingUser.setUsername("reader");
+        existingUser.setPassword(encoder.encode("old-reader-pass"));
+        existingUser.setRole("USER");
+        existingUser.setEnabled(true);
+        existingUser.setKnowledgeBases("HR");
+        when(repo.findByUsername("admin")).thenReturn(Optional.empty());
+        when(repo.findByUsername("reader")).thenReturn(Optional.of(existingUser));
+        when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UserAccountInitializer initializer = new UserAccountInitializer(repo, encoder);
+        ReflectionTestUtils.setField(initializer, "adminUsername", "admin");
+        ReflectionTestUtils.setField(initializer, "adminPassword", "admin-pass-123");
+        ReflectionTestUtils.setField(initializer, "userUsername", "reader");
+        ReflectionTestUtils.setField(initializer, "userPassword", "reader-pass-123");
+        ReflectionTestUtils.setField(initializer, "userKnowledgeBases", "default");
+        ReflectionTestUtils.setField(initializer, "minPasswordLength", 12);
+        initializer.init();
+
+        assertThat(existingUser.getKnowledgeBases()).isEqualTo("HR");
+    }
+
+    @Test
     void initializerRejectsMissingAdminPassword() {
         UserAccountRepository repo = mock(UserAccountRepository.class);
         UserAccountInitializer initializer = new UserAccountInitializer(repo,

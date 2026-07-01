@@ -100,9 +100,11 @@ class DocumentServiceTest {
             gapStore.add(e);
             return e;
         });
-        when(gapRepository.findById(any())).thenAnswer(inv -> {
-            String id = inv.getArgument(0);
-            return gapStore.stream().filter(e -> id.equals(e.getId())).findFirst();
+        when(gapRepository.findByKnowledgeBaseAndId(any(), any())).thenAnswer(inv -> {
+            String kb = inv.getArgument(0), id = inv.getArgument(1);
+            return gapStore.stream()
+                    .filter(e -> kb.equals(e.getKnowledgeBase()) && id.equals(e.getId()))
+                    .findFirst();
         });
         doAnswer(inv -> {
             gapStore.remove(inv.getArgument(0));
@@ -268,6 +270,18 @@ class DocumentServiceTest {
         assertThat(removed.getQuestion()).isEqualTo("合同模板在哪里申请？");
         assertThat(documentService.listKnowledgeGaps("Legal")).isEmpty();
         assertThat(documentService.resolveKnowledgeGap("Legal", "missing")).isNull();
+    }
+
+    @Test
+    void resolveKnowledgeGapDoesNotDeleteGapFromDifferentKnowledgeBase() {
+        documentService.recordKnowledgeGap("Legal", "合同模板在哪里申请？", "session-1");
+        String legalGapId = documentService.listKnowledgeGaps("Legal").get(0).getId();
+
+        KnowledgeGapInfo removed = documentService.resolveKnowledgeGap("HR", legalGapId);
+
+        assertThat(removed).isNull();
+        assertThat(documentService.listKnowledgeGaps("Legal")).hasSize(1);
+        assertThat(documentService.listKnowledgeGaps("HR")).isEmpty();
     }
 
     @Test

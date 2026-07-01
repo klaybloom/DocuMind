@@ -37,8 +37,8 @@ DocuMind 是一个基于 RAG 的智能文档问答助手。用户上传文档后
 推荐用环境变量注入：
 
 ```bash
-export DEEPSEEK_API_KEY=your_key_here
-export DOCUMIND_ADMIN_PASSWORD=your_secure_password
+export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
+export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 ```
 
 本地开发也可以复制模板：
@@ -59,7 +59,7 @@ mvn package
 mvn spring-boot:run
 ```
 
-当前测试基线：`mvn test` 应通过 77 个测试。
+当前测试基线：`mvn test` 应通过 89 个测试。
 
 ## 主要配置
 
@@ -123,51 +123,58 @@ dto/          请求、响应、健康检查、检索调试、来源引用等 DT
 
 - 用户账号存入 H2 数据库。
 - 启动时 `UserAccountInitializer` 用环境变量创建或更新管理员账号，可选创建普通用户账号。
-- 管理员可管理文件、索引、审计和健康 readiness。
-- 普通用户只能访问允许的知识库并进行问答。
+- 管理员可通过 `admin.html` 管理用户、知识库权限、文件、索引、审计和健康 readiness。
+- 普通用户只能访问用户表中允许的知识库并进行问答；启动环境变量只负责初始化默认账号。
 
 ### 审计和健康检查
 
 - 审计事件写入数据库，不再写 JSONL 文件。
-- `/api/health` 是公开 liveness。
-- `/api/health/readiness` 需要管理员权限，会检查 DeepSeek 配置、文档目录、索引、知识库状态和问答运行参数。
+- `/api/v1/health` 是公开 liveness。
+- `/api/v1/health/readiness` 需要管理员权限，会检查 DeepSeek 配置、文档目录、索引、知识库状态和问答运行参数。
 
 ## HTTP 接口
 
 ### 认证
 
-- `GET /api/auth/me`
+- `GET /api/v1/auth/me`
 
 ### 问答
 
-- `POST /api/chat`
-- `POST /api/chat/stream`
-- `DELETE /api/chat/sessions/{sessionId}`
+- `POST /api/v1/chat`
+- `POST /api/v1/chat/stream`
+- `DELETE /api/v1/chat/sessions/{sessionId}`
 
 ### 文件与知识库
 
-- `POST /api/files/upload`
-- `GET /api/files/list`
-- `GET /api/files/knowledge-bases`
-- `GET /api/files/status`
-- `POST /api/files/refresh`
-- `GET /api/files/{filename}/download`
-- `DELETE /api/files/{filename}`
-- `POST /api/files/{filename}/reindex`
+- `POST /api/v1/files/upload`
+- `GET /api/v1/files/list`
+- `GET /api/v1/files/knowledge-bases`
+- `GET /api/v1/files/status`
+- `POST /api/v1/files/refresh`
+- `GET /api/v1/files/{filename}/download`
+- `DELETE /api/v1/files/{filename}`
+- `POST /api/v1/files/{filename}/reindex`
 
 ### 知识缺口与审计
 
-- `GET /api/files/gaps`
-- `DELETE /api/files/gaps/{gapId}`
-- `GET /api/files/faq-draft`
-- `GET /api/files/audit`
+- `GET /api/v1/files/gaps`
+- `DELETE /api/v1/files/gaps/{gapId}`
+- `GET /api/v1/files/faq-draft`
+- `GET /api/v1/files/audit`
+
+### 后台用户管理
+
+- `GET /api/v1/admin/users`
+- `POST /api/v1/admin/users`
+- `PUT /api/v1/admin/users/{id}`
+- `PUT /api/v1/admin/users/{id}/password`
 
 ### 健康检查
 
-- `GET /api/health`
-- `GET /api/health/readiness`
+- `GET /api/v1/health`
+- `GET /api/v1/health/readiness`
 
-当前接口都挂在 `/api/` 下，还没有 `/api/v1` 版本前缀。
+当前接口都挂在 `/api/v1/` 下。
 
 ## 支持的文档格式
 
@@ -207,7 +214,6 @@ dto/          请求、响应、健康检查、检索调试、来源引用等 DT
 - Office 文档解析依赖 POI，纯数字 Excel 或复杂格式文档的抽取质量有限。
 - 前端入口已改为 ES Module，`app.js` 已接入 `api.js` 和 `utils.js`；目前仍是原生静态前端，尚未引入 Vite/Webpack 这类打包器。
 - 没有 OpenAPI/Swagger。
-- 没有 `/api/v1` 接口版本。
 - 没有 `application-prod.yml`。
 - 没有 Flyway/Liquibase 这类数据库迁移工具。
 - 没有完整的可观测性方案，例如 metrics、trace id、结构化日志聚合。

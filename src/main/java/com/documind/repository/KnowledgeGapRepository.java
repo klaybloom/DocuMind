@@ -11,4 +11,6 @@ public interface KnowledgeGapRepository extends JpaRepository<KnowledgeGapEntity
     List<KnowledgeGapEntity> findByKnowledgeBaseOrderByLastAskedAtDesc(String knowledgeBase);
 
     Optional<KnowledgeGapEntity> findByKnowledgeBaseAndQuestionIgnoreCase(String knowledgeBase, String question);
+
+    Optional<KnowledgeGapEntity> findByKnowledgeBaseAndId(String knowledgeBase, String id);
 }

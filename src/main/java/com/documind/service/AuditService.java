@@ -31,6 +31,14 @@ public class AuditService {
     public static final String ACTION_REFRESH_INDEX = "REFRESH_INDEX";
     public static final String ACTION_GENERATE_FAQ_DRAFT = "GENERATE_FAQ_DRAFT";
     public static final String ACTION_RESOLVE_KNOWLEDGE_GAP = "RESOLVE_KNOWLEDGE_GAP";
+    public static final String ACTION_CREATE_USER = "CREATE_USER";
+    public static final String ACTION_UPDATE_USER = "UPDATE_USER";
+    public static final String ACTION_RESET_USER_PASSWORD = "RESET_USER_PASSWORD";
+    public static final String ACTION_CREATE_KNOWLEDGE_BASE = "CREATE_KNOWLEDGE_BASE";
+    public static final String ACTION_UPDATE_KNOWLEDGE_BASE_OWNERS = "UPDATE_KNOWLEDGE_BASE_OWNERS";
+    public static final String ACTION_ADD_KNOWLEDGE_BASE_OWNERS = "ADD_KNOWLEDGE_BASE_OWNERS";
+    public static final String ACTION_TRANSFER_KNOWLEDGE_BASE_OWNER = "TRANSFER_KNOWLEDGE_BASE_OWNER";
+    public static final String ACTION_UPDATE_KNOWLEDGE_BASE_MEMBERS = "UPDATE_KNOWLEDGE_BASE_MEMBERS";
 
     private static final Logger logger = LoggerFactory.getLogger(AuditService.class);
     private static final int DEFAULT_LIMIT = 100;

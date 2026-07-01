@@ -68,9 +68,9 @@
                 </div>
                 <button class="logout-btn" id="logout-btn" type="button" title="退出登录">⏻</button>
             </div>
-            <button class="sidebar-action-btn" id="documents-btn" type="button">
-                <i data-lucide="folder-open"></i>
-                文档管理
+            <button class="sidebar-action-btn hidden" id="admin-console-btn" type="button">
+                <i data-lucide="shield-check"></i>
+                后台管理
             </button>
             <button class="sidebar-action-btn secondary" id="theme-toggle" type="button" aria-label="切换日间夜间模式">
                 <i data-lucide="moon"></i>
@@ -86,10 +86,9 @@
                 <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="收起或展开侧边栏" title="收起或展开侧边栏">
                     <i data-lucide="panel-left"></i>
                 </button>
-                <button class="topbar-title" type="button" id="topbar-documents-btn">
+                <div class="topbar-title">
                     <span>DocuMind</span>
-                    <i data-lucide="chevron-down"></i>
-                </button>
+                </div>
             </div>
             <div class="topbar-right">
                 <span class="topbar-kb-label">知识库</span>
@@ -144,94 +143,10 @@
         </div>
     </main>
 
-    <div class="modal-backdrop hidden" id="document-modal" aria-hidden="true">
-        <section class="document-modal" role="dialog" aria-modal="true" aria-labelledby="document-modal-title">
-            <div class="modal-header">
-                <div>
-                    <h2 id="document-modal-title">文档管理</h2>
-                    <p>上传、查看和删除知识库文档</p>
-                </div>
-                <button class="icon-btn" id="close-document-modal" type="button" aria-label="关闭文档管理">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-
-            <div class="doc-manager-panel" id="doc-manager-panel">
-                <input type="file" id="file-input" hidden accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
-                <div class="knowledge-base-admin">
-                    <label for="document-knowledge-base-select">目标知识库</label>
-                    <div class="knowledge-base-admin-row">
-                        <select id="document-knowledge-base-select"></select>
-                        <input id="knowledge-base-input" type="text" maxlength="60" placeholder="新知识库名，可留空">
-                    </div>
-                    <input id="document-owner-input" type="text" maxlength="80" placeholder="负责人，可留空">
-                </div>
-                <button class="upload-dropzone" id="upload-btn" type="button">
-                    <i data-lucide="upload-cloud"></i>
-                    <span>上传文档</span>
-                    <small>支持 PDF、Word、Excel、PPT、TXT，默认单个文件最大 50MB，可由部署配置调整</small>
-                </button>
-                <p class="modal-message" id="upload-status"></p>
-
-                <div class="document-list-header">
-                    <span>知识库状态</span>
-                </div>
-                <ul class="status-list" id="status-list"></ul>
-
-                <div class="document-list-header">
-                    <span>文档列表</span>
-                    <div class="document-list-actions">
-                        <button class="icon-text-btn" id="batch-toggle-btn" type="button" title="批量选择">
-                            <i data-lucide="list-check"></i>
-                            批量
-                        </button>
-                        <button class="icon-text-btn" id="reindex-btn" type="button" title="重新构建索引">
-                            <i data-lucide="rotate-cw"></i>
-                            重新索引
-                        </button>
-                        <button class="icon-text-btn" id="refresh-files-btn" type="button">
-                            <i data-lucide="refresh-cw"></i>
-                            刷新
-                        </button>
-                    </div>
-                </div>
-                <div class="batch-bar hidden" id="batch-bar">
-                    <label class="batch-select-all">
-                        <input type="checkbox" id="batch-select-all-cb">
-                        <span>全选</span>
-                    </label>
-                    <button class="batch-delete-btn" id="batch-delete-btn" type="button" disabled>
-                        <i data-lucide="trash-2"></i>
-                        删除选中 (<span id="batch-count">0</span>)
-                    </button>
-                    <button class="batch-cancel-btn" id="batch-cancel-btn" type="button">取消</button>
-                </div>
-                <ul class="file-list" id="file-list"></ul>
-                <div class="file-empty" id="file-empty">暂无文档</div>
-
-                <div class="document-list-header">
-                    <span>知识缺口</span>
-                    <button class="icon-text-btn" id="generate-faq-btn" type="button">
-                        <i data-lucide="file-text"></i>
-                        生成 FAQ 草稿
-                    </button>
-                </div>
-                <ul class="gap-list" id="gap-list"></ul>
-                <div class="gap-empty" id="gap-empty">暂无知识缺口</div>
-                <textarea class="faq-draft" id="faq-draft" readonly hidden></textarea>
-
-                <div class="document-list-header">
-                    <span>最近操作</span>
-                </div>
-                <ul class="audit-list" id="audit-list"></ul>
-                <div class="audit-empty" id="audit-empty">暂无审计记录</div>
-            </div>
-        </section>
-    </div>
     </div><!-- /app-root -->
 
     <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app.js?v=10"></script>
 </body>
 
 </html>

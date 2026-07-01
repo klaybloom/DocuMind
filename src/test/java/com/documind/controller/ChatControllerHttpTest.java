@@ -1,6 +1,9 @@
 package com.documind.controller;
 
 import com.documind.dto.RagAnswer;
+import com.documind.model.UserAccount;
+import com.documind.repository.KnowledgeBaseOwnerRepository;
+import com.documind.repository.UserAccountRepository;
 import com.documind.service.AuditService;
 import com.documind.service.DocumentService;
 import com.documind.service.KnowledgeBaseAccessService;
@@ -23,10 +26,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,8 +51,14 @@ class ChatControllerHttpTest {
         ragService = new FakeRagService(documentService);
         auditService = new RecordingAuditService();
         rateLimitService = new FakeRateLimitService();
-        KnowledgeBaseAccessService accessService = new KnowledgeBaseAccessService(documentService);
-        ReflectionTestUtils.setField(accessService, "userKnowledgeBases", "HR");
+        UserAccountRepository userRepository = mock(UserAccountRepository.class);
+        when(userRepository.findByUsername("reader")).thenReturn(Optional.of(userAccount("reader", "HR")));
+        when(userRepository.findByUsername("reader@example.com")).thenReturn(Optional.of(userAccount("reader@example.com", "HR")));
+        KnowledgeBaseAccessService accessService = new KnowledgeBaseAccessService(
+                documentService,
+                userRepository,
+                mock(KnowledgeBaseOwnerRepository.class)
+        );
         ChatController controller = new ChatController(
                 ragService,
                 auditService,
@@ -292,7 +304,11 @@ class ChatControllerHttpTest {
         ChatController controller = new ChatController(
                 new FakeRagService(documentService),
                 new RecordingAuditService(),
-                new KnowledgeBaseAccessService(documentService),
+                new KnowledgeBaseAccessService(
+                        documentService,
+                        mock(UserAccountRepository.class),
+                        mock(KnowledgeBaseOwnerRepository.class)
+                ),
                 new FakeRateLimitService(),
                 Runnable::run,
                 new ObjectMapper()
@@ -314,6 +330,16 @@ class ChatControllerHttpTest {
                 "password",
                 List.of(new SimpleGrantedAuthority(role))
         );
+    }
+
+    private UserAccount userAccount(String username, String knowledgeBases) {
+        UserAccount account = new UserAccount();
+        account.setUsername(username);
+        account.setRole("USER");
+        account.setEnabled(true);
+        account.setKnowledgeBases(knowledgeBases);
+        account.setPassword("{noop}password");
+        return account;
     }
 
     static class FakeDocumentService extends DocumentService {

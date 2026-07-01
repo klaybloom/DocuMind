@@ -11,6 +11,7 @@ import com.documind.exception.InvalidFileException;
 import com.documind.service.AuditService;
 import com.documind.service.DocumentService;
 import com.documind.service.KnowledgeBaseAccessService;
+import com.documind.service.KnowledgeBaseManagementService;
 import com.documind.service.RagService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import java.security.Principal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/files")
@@ -42,28 +44,37 @@ public class FileController {
     private final RagService ragService;
     private final AuditService auditService;
     private final KnowledgeBaseAccessService knowledgeBaseAccessService;
+    private final KnowledgeBaseManagementService knowledgeBaseManagementService;
 
     public FileController(DocumentService documentService,
                           RagService ragService,
                           AuditService auditService,
-                          KnowledgeBaseAccessService knowledgeBaseAccessService) {
+                          KnowledgeBaseAccessService knowledgeBaseAccessService,
+                          KnowledgeBaseManagementService knowledgeBaseManagementService) {
         this.documentService = documentService;
         this.ragService = ragService;
         this.auditService = auditService;
         this.knowledgeBaseAccessService = knowledgeBaseAccessService;
+        this.knowledgeBaseManagementService = knowledgeBaseManagementService;
     }
 
     @PostMapping("/upload")
     public ResponseEntity<FileUploadResponse> uploadFile(@RequestParam("file") MultipartFile file,
                                                          @RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
                                                          @RequestParam(value = "owner", required = false) String owner,
+                                                         Authentication authentication,
                                                          Principal principal) {
         try {
             logger.info("Uploading file: {} to knowledge base: {}", file.getOriginalFilename(), knowledgeBase);
+            String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(FileUploadResponse.error("当前账号没有该知识库管理权限"));
+            }
+            knowledgeBaseManagementService.ensureMetadata(kb, authentication);
             String uploadedBy = principal == null ? null : principal.getName();
             String fileName = documentService.storeFile(file, knowledgeBase, owner, uploadedBy);
-            ragService.refreshIndex();
-            String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            ragService.reindexDocument(fileName, kb);
             Map<String, Object> details = details();
             putIfPresent(details, "owner", owner);
             putIfPresent(details, "contentType", file.getContentType());
@@ -91,11 +102,27 @@ public class FileController {
     }
 
     @GetMapping("/list")
-    public ResponseEntity<?> listFiles(@RequestParam(value = "knowledgeBase", required = false) String knowledgeBase) {
+    public ResponseEntity<?> listFiles(@RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                       Authentication authentication) {
         try {
-            List<DocumentFileInfo> files = knowledgeBase == null || knowledgeBase.trim().isEmpty()
-                    ? documentService.listDocumentFiles()
-                    : documentService.listDocumentFiles(knowledgeBase);
+            List<DocumentFileInfo> files;
+            if (knowledgeBase == null || knowledgeBase.trim().isEmpty()) {
+                List<String> manageable = knowledgeBaseManagementService.manageableKnowledgeBases(authentication);
+                if (manageable.isEmpty()) {
+                    return forbidden();
+                }
+                Set<String> allowed = Set.copyOf(manageable);
+                files = documentService.listDocumentFiles()
+                        .stream()
+                        .filter(file -> allowed.contains(file.getKnowledgeBase()))
+                        .toList();
+            } else {
+                String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+                if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                    return forbidden();
+                }
+                files = documentService.listDocumentFiles(kb);
+            }
             return ResponseEntity.ok(files);
         } catch (InvalidFileException e) {
             logger.warn("Invalid file list request: {}", e.getMessage());
@@ -109,9 +136,14 @@ public class FileController {
     @GetMapping("/knowledge-bases")
     public ResponseEntity<List<String>> listKnowledgeBases(Authentication authentication) {
         try {
+            knowledgeBaseManagementService.syncKnownKnowledgeBases();
+            List<String> knowledgeBases = knowledgeBaseManagementService.allKnowledgeBaseNames();
+            if (knowledgeBases.isEmpty()) {
+                knowledgeBases = documentService.listKnowledgeBases();
+            }
             return ResponseEntity.ok(knowledgeBaseAccessService.filterAccessible(
                     authentication,
-                    documentService.listKnowledgeBases()
+                    knowledgeBases
             ));
         } catch (Exception e) {
             logger.error("Error listing knowledge bases", e);
@@ -120,9 +152,17 @@ public class FileController {
     }
 
     @GetMapping("/status")
-    public ResponseEntity<List<KnowledgeBaseStatus>> listKnowledgeBaseStatuses() {
+    public ResponseEntity<?> listKnowledgeBaseStatuses(Authentication authentication) {
         try {
-            return ResponseEntity.ok(documentService.listKnowledgeBaseStatuses());
+            List<String> manageable = knowledgeBaseManagementService.manageableKnowledgeBases(authentication);
+            if (manageable.isEmpty()) {
+                return forbidden();
+            }
+            Set<String> allowed = Set.copyOf(manageable);
+            return ResponseEntity.ok(documentService.listKnowledgeBaseStatuses()
+                    .stream()
+                    .filter(status -> allowed.contains(status.getKnowledgeBase()))
+                    .toList());
         } catch (Exception e) {
             logger.error("Error listing knowledge base statuses", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -130,11 +170,27 @@ public class FileController {
     }
 
     @GetMapping("/gaps")
-    public ResponseEntity<?> listKnowledgeGaps(@RequestParam(value = "knowledgeBase", required = false) String knowledgeBase) {
+    public ResponseEntity<?> listKnowledgeGaps(@RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                               Authentication authentication) {
         try {
-            List<KnowledgeGapInfo> gaps = knowledgeBase == null || knowledgeBase.trim().isEmpty()
-                    ? documentService.listKnowledgeGaps()
-                    : documentService.listKnowledgeGaps(knowledgeBase);
+            List<KnowledgeGapInfo> gaps;
+            if (knowledgeBase == null || knowledgeBase.trim().isEmpty()) {
+                List<String> manageable = knowledgeBaseManagementService.manageableKnowledgeBases(authentication);
+                if (manageable.isEmpty()) {
+                    return forbidden();
+                }
+                Set<String> allowed = Set.copyOf(manageable);
+                gaps = documentService.listKnowledgeGaps()
+                        .stream()
+                        .filter(gap -> allowed.contains(gap.getKnowledgeBase()))
+                        .toList();
+            } else {
+                String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+                if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                    return forbidden();
+                }
+                gaps = documentService.listKnowledgeGaps(kb);
+            }
             return ResponseEntity.ok(gaps);
         } catch (InvalidFileException e) {
             logger.warn("Invalid knowledge gap list request: {}", e.getMessage());
@@ -147,8 +203,13 @@ public class FileController {
 
     @GetMapping("/faq-draft")
     public ResponseEntity<?> generateFaqDraft(@RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                              Authentication authentication,
                                               Principal principal) {
         try {
+            String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return forbidden();
+            }
             FaqDraftResponse draft = documentService.generateFaqDraft(knowledgeBase);
             auditService.record(
                     actor(principal),
@@ -170,9 +231,13 @@ public class FileController {
     @DeleteMapping("/gaps/{gapId}")
     public ResponseEntity<Map<String, String>> resolveKnowledgeGap(@PathVariable String gapId,
                                                                    @RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                                                   Authentication authentication,
                                                                    Principal principal) {
         try {
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return forbidden();
+            }
             KnowledgeGapInfo removed = documentService.resolveKnowledgeGap(kb, gapId);
             if (removed == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -201,8 +266,12 @@ public class FileController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, String>> refreshIndex(Principal principal) {
+    public ResponseEntity<Map<String, String>> refreshIndex(Authentication authentication,
+                                                           Principal principal) {
         try {
+            if (!isAdmin(authentication)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "只有管理员可以全量刷新索引"));
+            }
             logger.info("Refreshing index");
             ragService.refreshIndex();
             auditService.record(
@@ -223,9 +292,13 @@ public class FileController {
     @GetMapping("/{filename}/download")
     public ResponseEntity<Resource> downloadFile(@PathVariable String filename,
                                                  @RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                                 Authentication authentication,
                                                  Principal principal) {
         try {
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
             Path path = documentService.resolveDownloadPath(filename, knowledgeBase);
             Resource resource = new FileSystemResource(path);
             auditService.record(
@@ -260,10 +333,14 @@ public class FileController {
     @DeleteMapping("/{filename}")
     public ResponseEntity<Map<String, String>> deleteFile(@PathVariable String filename,
                                                           @RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                                          Authentication authentication,
                                                           Principal principal) {
         try {
             logger.info("Deleting file: {} from knowledge base: {}", filename, knowledgeBase);
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return forbidden();
+            }
             boolean deleted = documentService.deleteFile(filename, knowledgeBase);
             if (!deleted) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -295,10 +372,14 @@ public class FileController {
     @PostMapping("/{filename}/reindex")
     public ResponseEntity<Map<String, String>> reindexFile(@PathVariable String filename,
                                                             @RequestParam(value = "knowledgeBase", required = false) String knowledgeBase,
+                                                            Authentication authentication,
                                                             Principal principal) {
         try {
             logger.info("Reindexing file: {} from knowledge base: {}", filename, knowledgeBase);
             String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
+            if (!knowledgeBaseManagementService.canManage(authentication, kb)) {
+                return forbidden();
+            }
             ragService.reindexDocument(filename, kb);
             auditService.record(
                     actor(principal),
@@ -319,13 +400,32 @@ public class FileController {
     }
 
     @GetMapping("/audit")
-    public ResponseEntity<List<AuditEvent>> listAuditEvents(@RequestParam(value = "limit", required = false, defaultValue = "100") int limit) {
+    public ResponseEntity<?> listAuditEvents(@RequestParam(value = "limit", required = false, defaultValue = "100") int limit,
+                                             Authentication authentication) {
         try {
-            return ResponseEntity.ok(auditService.listRecent(limit));
+            if (isAdmin(authentication)) {
+                return ResponseEntity.ok(auditService.listRecent(limit));
+            }
+            List<String> manageable = knowledgeBaseManagementService.manageableKnowledgeBases(authentication);
+            if (manageable.isEmpty()) {
+                return forbidden();
+            }
+            Set<String> allowed = Set.copyOf(manageable);
+            return ResponseEntity.ok(auditService.listRecent(Math.max(limit, 100))
+                    .stream()
+                    .filter(event -> ownerVisibleAuditEvent(event, allowed))
+                    .limit(limit)
+                    .toList());
         } catch (Exception e) {
             logger.error("Error listing audit events", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @ExceptionHandler(KnowledgeBaseManagementService.KnowledgeBaseManagementException.class)
+    public ResponseEntity<Map<String, String>> handleKnowledgeBaseException(
+            KnowledgeBaseManagementService.KnowledgeBaseManagementException ex) {
+        return ResponseEntity.status(ex.getStatus()).body(Map.of("error", ex.getMessage()));
     }
 
     private Map<String, Object> details() {
@@ -340,6 +440,27 @@ public class FileController {
 
     private String actor(Principal principal) {
         return principal == null ? null : principal.getName();
+    }
+
+    private ResponseEntity<Map<String, String>> forbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "当前账号没有知识库管理权限"));
+    }
+
+    private boolean isAdmin(Authentication authentication) {
+        return authentication != null
+                && authentication.getAuthorities()
+                .stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    }
+
+    private boolean ownerVisibleAuditEvent(AuditEvent event, Set<String> allowedKnowledgeBases) {
+        if (event.getKnowledgeBase() == null || !allowedKnowledgeBases.contains(event.getKnowledgeBase())) {
+            return false;
+        }
+        return !AuditService.ACTION_CREATE_USER.equals(event.getAction())
+                && !AuditService.ACTION_UPDATE_USER.equals(event.getAction())
+                && !AuditService.ACTION_RESET_USER_PASSWORD.equals(event.getAction());
     }
 
     private int safeLength(String value) {

@@ -4,18 +4,11 @@ import {
     streamChatResponse as streamChatResponseApi
 } from './api.js';
 import {
-    actionText,
     escapeHtml,
-    formatDate,
-    formatDateTime,
     formatResponse,
     getFileColorClass,
-    getFileIconElement,
     getFileTypeLabel,
     knowledgeBaseLabel,
-    statusClass,
-    statusDetailText,
-    statusText,
     truncateFilename
 } from './utils.js';
 
@@ -41,34 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     const historyList = document.getElementById('history-list');
     const historyEmpty = document.getElementById('history-empty');
-    const documentsBtn = document.getElementById('documents-btn');
-    const topbarDocumentsBtn = document.getElementById('topbar-documents-btn');
-    const documentModal = document.getElementById('document-modal');
-    const closeDocumentModal = document.getElementById('close-document-modal');
-    const fileInput = document.getElementById('file-input');
-    const uploadBtn = document.getElementById('upload-btn');
-    const uploadStatus = document.getElementById('upload-status');
-    const fileList = document.getElementById('file-list');
-    const fileEmpty = document.getElementById('file-empty');
-    const statusList = document.getElementById('status-list');
-    const gapList = document.getElementById('gap-list');
-    const gapEmpty = document.getElementById('gap-empty');
-    const auditList = document.getElementById('audit-list');
-    const auditEmpty = document.getElementById('audit-empty');
-    const refreshFilesBtn = document.getElementById('refresh-files-btn');
-    const reindexBtn = document.getElementById('reindex-btn');
-    const batchToggleBtn = document.getElementById('batch-toggle-btn');
-    const batchBar = document.getElementById('batch-bar');
-    const batchSelectAllCb = document.getElementById('batch-select-all-cb');
-    const batchDeleteBtn = document.getElementById('batch-delete-btn');
-    const batchCancelBtn = document.getElementById('batch-cancel-btn');
-    const batchCount = document.getElementById('batch-count');
+    const adminConsoleBtn = document.getElementById('admin-console-btn');
     const knowledgeBaseSelect = document.getElementById('knowledge-base-select');
-    const documentKnowledgeBaseSelect = document.getElementById('document-knowledge-base-select');
-    const knowledgeBaseInput = document.getElementById('knowledge-base-input');
-    const documentOwnerInput = document.getElementById('document-owner-input');
-    const generateFaqBtn = document.getElementById('generate-faq-btn');
-    const faqDraft = document.getElementById('faq-draft');
     const themeToggle = document.getElementById('theme-toggle');
     const themeLabel = document.getElementById('theme-label');
     const debugToggle = document.getElementById('debug-toggle');
@@ -162,11 +129,25 @@ document.addEventListener('DOMContentLoaded', () => {
         userInfo.classList.remove('hidden');
         userName.textContent = user.username;
         userAvatar.textContent = (user.username || '?')[0].toUpperCase();
-        if (user.roles && user.roles.includes('ADMIN')) {
+        const roles = user.roles || [];
+        if (roles.includes('ADMIN')) {
             userRole.textContent = '管理员';
+        } else if (user.canManageKnowledgeBases) {
+            userRole.textContent = '知识库负责人';
         } else {
             userRole.textContent = '普通用户';
         }
+        if (adminConsoleBtn) {
+            if (roles.includes('ADMIN') || user.canManageKnowledgeBases) {
+                adminConsoleBtn.classList.remove('hidden');
+            } else {
+                adminConsoleBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    function openAdminConsole() {
+        window.location.href = 'admin.html';
     }
 
     function showLogin(errorMsg) {
@@ -226,12 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let isProcessing = false;
-    let batchMode = false;
-    let selectedFiles = new Set();
     let conversations = loadConversations();
     let currentId = null;
     let currentKnowledgeBases = loadSelectedKnowledgeBases();
-    let currentKnowledgeBase = currentKnowledgeBases[0] || DEFAULT_KNOWLEDGE_BASE;
 
     function loadSelectedKnowledgeBases() {
         const raw = localStorage.getItem(KNOWLEDGE_BASE_KEY);
@@ -254,7 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(value => String(value || '').trim())
             .filter(Boolean)));
         currentKnowledgeBases = normalized.length > 0 ? normalized : [DEFAULT_KNOWLEDGE_BASE];
-        currentKnowledgeBase = currentKnowledgeBases[0] || DEFAULT_KNOWLEDGE_BASE;
         localStorage.setItem(KNOWLEDGE_BASE_KEY, JSON.stringify(currentKnowledgeBases));
     }
 
@@ -460,29 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showDocumentModal() {
-        documentModal.classList.remove('hidden');
-        documentModal.setAttribute('aria-hidden', 'false');
-        batchMode = false;
-        selectedFiles.clear();
-        batchBar.classList.add('hidden');
-        syncKnowledgeBaseControls();
-        loadFileList();
-        loadKnowledgeBaseStatus();
-        loadKnowledgeGaps();
-        loadAuditEvents();
-    }
-
-    function hideDocumentModal() {
-        documentModal.classList.add('hidden');
-        documentModal.setAttribute('aria-hidden', 'true');
-    }
-
-    function setUploadStatus(message, type = '') {
-        uploadStatus.textContent = message;
-        uploadStatus.dataset.type = type;
-    }
-
     async function loadKnowledgeBases() {
         try {
             const response = await authFetch('/api/v1/files/knowledge-bases');
@@ -517,466 +471,17 @@ document.addEventListener('DOMContentLoaded', () => {
             knowledgeBaseSelect.appendChild(option);
         });
 
-        documentKnowledgeBaseSelect.innerHTML = '';
-        available.forEach(kb => {
-            const option = document.createElement('option');
-            option.value = kb;
-            option.textContent = knowledgeBaseLabel(kb);
-            documentKnowledgeBaseSelect.appendChild(option);
-        });
-        documentKnowledgeBaseSelect.value = currentKnowledgeBase;
     }
 
     function syncKnowledgeBaseControls() {
         Array.from(knowledgeBaseSelect.options).forEach(option => {
             option.selected = selectedKnowledgeBaseList().includes(option.value);
         });
-        documentKnowledgeBaseSelect.value = currentKnowledgeBase;
-    }
-
-    function setCurrentKnowledgeBase(value) {
-        saveSelectedKnowledgeBases([value || DEFAULT_KNOWLEDGE_BASE]);
-        faqDraft.hidden = true;
-        faqDraft.value = '';
-        syncKnowledgeBaseControls();
     }
 
     function setCurrentKnowledgeBases(values) {
         saveSelectedKnowledgeBases(values);
-        faqDraft.hidden = true;
-        faqDraft.value = '';
         syncKnowledgeBaseControls();
-    }
-
-    function selectedUploadKnowledgeBase() {
-        const newKnowledgeBase = knowledgeBaseInput.value.trim();
-        return newKnowledgeBase || documentKnowledgeBaseSelect.value || currentKnowledgeBase;
-    }
-
-    async function loadFileList() {
-        try {
-            const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/list?${params}`);
-            if (response.status === 401 || response.status === 403) {
-                fileList.innerHTML = '';
-                fileEmpty.style.display = 'block';
-                fileEmpty.textContent = '当前账号没有文档管理权限';
-                setUploadStatus('请使用管理员账号登录后管理文档', 'error');
-                statusList.innerHTML = '';
-                gapList.innerHTML = '';
-                auditList.innerHTML = '';
-                gapEmpty.style.display = 'none';
-                auditEmpty.style.display = 'none';
-                return;
-            }
-            if (!response.ok) throw new Error('Failed to load files');
-
-            const files = await response.json();
-            fileList.innerHTML = '';
-            fileEmpty.style.display = files.length === 0 ? 'block' : 'none';
-
-            files.forEach(file => {
-                const li = document.createElement('li');
-                li.className = 'file-item' + (selectedFiles.has(file.fileName) ? ' batch-selected' : '');
-                li.dataset.filename = file.fileName;
-
-                if (batchMode) {
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    cb.className = 'batch-checkbox';
-                    cb.checked = selectedFiles.has(file.fileName);
-                    cb.addEventListener('change', () => toggleFileSelection(file.fileName, li));
-                    li.appendChild(cb);
-                }
-
-                const icon = getFileIconElement(file.fileName);
-
-                const meta = document.createElement('div');
-                meta.className = 'file-meta';
-
-                const name = document.createElement('span');
-                name.className = 'file-name';
-                name.textContent = file.fileName;
-
-                const status = document.createElement('span');
-                status.className = `file-status ${statusClass(file.indexStatus)}`;
-                status.textContent = `${statusText(file)}${file.owner ? ' · 负责人 ' + file.owner : ''}`;
-
-                const detail = statusDetailText(file);
-                if (detail) {
-                    const statusDetail = document.createElement('span');
-                    statusDetail.className = 'file-status-detail';
-                    statusDetail.textContent = detail;
-                    meta.appendChild(statusDetail);
-                }
-
-                meta.appendChild(name);
-                meta.appendChild(status);
-
-                const download = document.createElement('button');
-                download.className = 'download-file-btn';
-                download.type = 'button';
-                download.setAttribute('aria-label', `下载 ${file.fileName}`);
-                download.innerHTML = '<i data-lucide="download"></i>';
-                download.addEventListener('click', () => downloadFile(file.fileName, file.knowledgeBase));
-
-                const reindex = document.createElement('button');
-                reindex.className = 'reindex-file-btn';
-                reindex.type = 'button';
-                reindex.setAttribute('aria-label', `重新索引 ${file.fileName}`);
-                reindex.innerHTML = '<i data-lucide="refresh-cw"></i>';
-                reindex.addEventListener('click', () => reindexFile(file.fileName, file.knowledgeBase));
-
-                const del = document.createElement('button');
-                del.className = 'delete-file-btn';
-                del.type = 'button';
-                del.setAttribute('aria-label', `删除 ${file.fileName}`);
-                del.innerHTML = '<i data-lucide="trash-2"></i>';
-                del.addEventListener('click', () => deleteFile(file.fileName, file.knowledgeBase));
-
-                li.appendChild(icon);
-                li.appendChild(meta);
-                li.appendChild(download);
-                li.appendChild(reindex);
-                li.appendChild(del);
-                fileList.appendChild(li);
-            });
-            refreshIcons();
-        } catch (error) {
-            console.error('Error loading files:', error);
-            fileList.innerHTML = '';
-            fileEmpty.style.display = 'block';
-            fileEmpty.textContent = '文档列表加载失败';
-        }
-    }
-
-    async function loadKnowledgeBaseStatus() {
-        try {
-            const response = await authFetch('/api/v1/files/status');
-            if (!response.ok) {
-                statusList.innerHTML = '';
-                return;
-            }
-
-            const statuses = await response.json();
-            statusList.innerHTML = '';
-            statuses.forEach(status => {
-                const li = document.createElement('li');
-                li.className = 'status-item';
-                li.innerHTML = `
-                    <span>${escapeHtml(knowledgeBaseLabel(status.knowledgeBase))}</span>
-                    <small>${status.indexedFiles}/${status.totalFiles} 已索引 · ${status.failedFiles} 失败 · ${status.staleFiles} 过期 · ${status.knowledgeGaps} 缺口</small>
-                `;
-                statusList.appendChild(li);
-            });
-        } catch (error) {
-            console.error('Error loading knowledge base status:', error);
-            statusList.innerHTML = '';
-        }
-    }
-
-    async function loadKnowledgeGaps() {
-        try {
-            const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/gaps?${params}`);
-            if (!response.ok) {
-                gapList.innerHTML = '';
-                gapEmpty.style.display = 'none';
-                return;
-            }
-
-            const gaps = await response.json();
-            gapList.innerHTML = '';
-            gapEmpty.style.display = gaps.length === 0 ? 'block' : 'none';
-            gaps.slice(0, 8).forEach(gap => {
-                const li = document.createElement('li');
-                li.className = 'gap-item';
-                const question = document.createElement('span');
-                question.textContent = gap.question;
-                const detail = document.createElement('small');
-                detail.textContent = `${gap.occurrences || 1} 次 · ${formatDate(gap.lastAskedAt)}`;
-                const resolve = document.createElement('button');
-                resolve.className = 'resolve-gap-btn';
-                resolve.type = 'button';
-                resolve.title = '标记已处理';
-                resolve.setAttribute('aria-label', `标记已处理: ${gap.question}`);
-                resolve.innerHTML = '<i data-lucide="check"></i>';
-                resolve.addEventListener('click', () => resolveKnowledgeGap(gap.id, gap.knowledgeBase));
-                li.appendChild(question);
-                li.appendChild(detail);
-                li.appendChild(resolve);
-                gapList.appendChild(li);
-            });
-            refreshIcons();
-        } catch (error) {
-            console.error('Error loading knowledge gaps:', error);
-            gapList.innerHTML = '';
-            gapEmpty.style.display = 'block';
-            gapEmpty.textContent = '知识缺口加载失败';
-        }
-    }
-
-    async function resolveKnowledgeGap(gapId, knowledgeBase) {
-        if (!gapId) return;
-
-        try {
-            const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/gaps/${encodeURIComponent(gapId)}?${params}`, { method: 'DELETE' });
-            if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有处理知识缺口权限', 'error');
-                return;
-            }
-            if (!response.ok) throw new Error('Resolve gap failed');
-            setUploadStatus('知识缺口已标记为已处理', 'success');
-            loadKnowledgeGaps();
-            loadKnowledgeBaseStatus();
-            loadAuditEvents();
-        } catch (error) {
-            console.error('Error resolving knowledge gap:', error);
-            setUploadStatus('知识缺口处理失败', 'error');
-        }
-    }
-
-    async function loadAuditEvents() {
-        try {
-            const response = await authFetch('/api/v1/files/audit?limit=12');
-            if (!response.ok) {
-                auditList.innerHTML = '';
-                auditEmpty.style.display = 'none';
-                return;
-            }
-
-            const events = await response.json();
-            auditList.innerHTML = '';
-            auditEmpty.style.display = events.length === 0 ? 'block' : 'none';
-            events.forEach(event => {
-                const li = document.createElement('li');
-                li.className = 'audit-item';
-                const target = event.fileName || knowledgeBaseLabel(event.knowledgeBase || DEFAULT_KNOWLEDGE_BASE);
-                li.innerHTML = `
-                    <span>${escapeHtml(actionText(event.action))}</span>
-                    <small>${escapeHtml(event.actor || 'unknown')} · ${escapeHtml(target)} · ${formatDateTime(event.timestamp)}</small>
-                `;
-                auditList.appendChild(li);
-            });
-        } catch (error) {
-            console.error('Error loading audit events:', error);
-            auditList.innerHTML = '';
-            auditEmpty.style.display = 'block';
-            auditEmpty.textContent = '审计记录加载失败';
-        }
-    }
-
-    function downloadFile(filename, knowledgeBase) {
-        const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-        const url = `/api/v1/files/${encodeURIComponent(filename)}/download?${params}`;
-        authFetch(url).then(resp => {
-            if (!resp.ok) return;
-            return resp.blob();
-        }).then(blob => {
-            if (!blob) return;
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(a.href);
-        }).catch(() => {});
-        setTimeout(loadAuditEvents, 800);
-    }
-
-    async function deleteFile(filename, knowledgeBase) {
-        if (!confirm(`确定要删除 ${filename} 吗？`)) return;
-
-        try {
-            const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
-            if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有删除权限', 'error');
-                return;
-            }
-            if (response.status === 404) {
-                setUploadStatus('文件不存在或已被删除', 'error');
-                loadFileList();
-                return;
-            }
-            if (!response.ok) throw new Error('Delete failed');
-            setUploadStatus(`已删除 ${filename}`, 'success');
-            loadFileList();
-            loadKnowledgeBaseStatus();
-            loadAuditEvents();
-        } catch (error) {
-            console.error('Error deleting file:', error);
-            setUploadStatus('删除失败', 'error');
-        }
-    }
-
-    async function reindexFile(filename, knowledgeBase) {
-        try {
-            setUploadStatus(`正在重新索引 ${filename}…`);
-            const params = new URLSearchParams({ knowledgeBase: knowledgeBase || currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}/reindex?${params}`, { method: 'POST' });
-            if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有重新索引权限', 'error');
-                return;
-            }
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || 'Reindex failed');
-            }
-            setUploadStatus(`已重新索引 ${filename}`, 'success');
-            loadFileList();
-            loadKnowledgeBaseStatus();
-            loadAuditEvents();
-        } catch (error) {
-            console.error('Error reindexing file:', error);
-            setUploadStatus(`重新索引失败: ${error.message}`, 'error');
-        }
-    }
-
-    async function reindexKnowledgeBase() {
-        reindexBtn.disabled = true;
-        setUploadStatus('正在重新构建索引，请稍候…');
-
-        try {
-            const response = await authFetch('/api/v1/files/refresh', { method: 'POST' });
-            if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有重新索引权限', 'error');
-                return;
-            }
-            if (!response.ok) throw new Error('Reindex failed');
-
-            setUploadStatus('索引重建完成', 'success');
-            loadFileList();
-            loadKnowledgeBaseStatus();
-            loadAuditEvents();
-        } catch (error) {
-            console.error('Error reindexing:', error);
-            setUploadStatus('索引重建失败', 'error');
-        } finally {
-            reindexBtn.disabled = false;
-        }
-    }
-
-    function enterBatchMode() {
-        batchMode = true;
-        selectedFiles.clear();
-        batchBar.classList.remove('hidden');
-        batchSelectAllCb.checked = false;
-        updateBatchCount();
-        loadFileList();
-    }
-
-    function exitBatchMode() {
-        batchMode = false;
-        selectedFiles.clear();
-        batchBar.classList.add('hidden');
-        loadFileList();
-    }
-
-    function updateBatchCount() {
-        batchCount.textContent = selectedFiles.size;
-        batchDeleteBtn.disabled = selectedFiles.size === 0;
-    }
-
-    function toggleFileSelection(filename, li) {
-        if (selectedFiles.has(filename)) {
-            selectedFiles.delete(filename);
-            li.classList.remove('batch-selected');
-            const cb = li.querySelector('.batch-checkbox');
-            if (cb) cb.checked = false;
-        } else {
-            selectedFiles.add(filename);
-            li.classList.add('batch-selected');
-            const cb = li.querySelector('.batch-checkbox');
-            if (cb) cb.checked = true;
-        }
-        updateBatchCount();
-    }
-
-    async function batchDeleteSelected() {
-        if (selectedFiles.size === 0) return;
-
-        const files = Array.from(selectedFiles);
-        const confirmMsg = files.length === 1
-            ? `确定要删除 "${files[0]}" 吗？`
-            : `确定要删除选中的 ${files.length} 个文件吗？`;
-
-        if (!confirm(confirmMsg)) return;
-
-        let deleted = 0;
-        let failed = 0;
-
-        for (const filename of files) {
-            try {
-                const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-                const response = await authFetch(`/api/v1/files/${encodeURIComponent(filename)}?${params}`, { method: 'DELETE' });
-                if (response.ok) {
-                    deleted++;
-                    selectedFiles.delete(filename);
-                } else {
-                    failed++;
-                }
-            } catch (error) {
-                failed++;
-                console.error('Batch delete error for', filename, error);
-            }
-        }
-
-        if (failed > 0) {
-            setUploadStatus(`已删除 ${deleted} 个文件，${failed} 个失败`, deleted > 0 ? 'success' : 'error');
-        } else {
-            setUploadStatus(`已删除 ${deleted} 个文件`, 'success');
-        }
-
-        exitBatchMode();
-        loadKnowledgeBaseStatus();
-        loadAuditEvents();
-    }
-
-    async function uploadSelectedFile() {
-        if (fileInput.files.length === 0) return;
-
-        const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('knowledgeBase', selectedUploadKnowledgeBase());
-        if (documentOwnerInput.value.trim() !== '') {
-            formData.append('owner', documentOwnerInput.value.trim());
-        }
-
-        uploadBtn.disabled = true;
-        setUploadStatus(`正在解析并构建索引: ${file.name}`);
-
-        try {
-            const response = await authFetch('/api/v1/files/upload', {
-                method: 'POST',
-                body: formData,
-                headers: {}  // authFetch 会自动添加 Authorization，不要手动设 Content-Type
-            });
-            const data = await response.json().catch(() => ({}));
-
-            if (response.ok) {
-                setUploadStatus(`"${file.name}" 已入库`, 'success');
-                setCurrentKnowledgeBase(selectedUploadKnowledgeBase());
-                knowledgeBaseInput.value = '';
-                documentOwnerInput.value = '';
-                await loadKnowledgeBases();
-                loadFileList();
-                loadKnowledgeBaseStatus();
-                loadKnowledgeGaps();
-                loadAuditEvents();
-            } else if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有上传权限', 'error');
-            } else {
-                setUploadStatus(data.error || '文件上传或索引失败', 'error');
-            }
-        } catch (error) {
-            console.error('Error uploading file:', error);
-            setUploadStatus('连接服务时出错', 'error');
-        } finally {
-            uploadBtn.disabled = false;
-            fileInput.value = '';
-        }
     }
 
     userInput.addEventListener('input', () => {
@@ -1083,26 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, handlers);
     }
 
-    async function generateFaqDraft() {
-        try {
-            const params = new URLSearchParams({ knowledgeBase: currentKnowledgeBase });
-            const response = await authFetch(`/api/v1/files/faq-draft?${params}`);
-            if (response.status === 401 || response.status === 403) {
-                setUploadStatus('当前账号没有生成 FAQ 草稿权限', 'error');
-                return;
-            }
-            if (!response.ok) throw new Error('FAQ draft failed');
-
-            const draft = await response.json();
-            faqDraft.hidden = false;
-            faqDraft.value = draft.markdown || '';
-            loadAuditEvents();
-        } catch (error) {
-            console.error('Error generating FAQ draft:', error);
-            setUploadStatus('FAQ 草稿生成失败', 'error');
-        }
-    }
-
     sendBtn.addEventListener('click', sendMessage);
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1118,65 +603,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHistory();
     });
 
-    documentsBtn.addEventListener('click', showDocumentModal);
-    if (topbarDocumentsBtn) {
-        topbarDocumentsBtn.addEventListener('click', showDocumentModal);
+    if (adminConsoleBtn) {
+        adminConsoleBtn.addEventListener('click', openAdminConsole);
     }
-    closeDocumentModal.addEventListener('click', hideDocumentModal);
-    documentModal.addEventListener('click', (event) => {
-        if (event.target === documentModal) hideDocumentModal();
-    });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !documentModal.classList.contains('hidden')) {
-            hideDocumentModal();
-        }
-    });
-    refreshFilesBtn.addEventListener('click', () => {
-        loadFileList();
-        loadKnowledgeBaseStatus();
-        loadKnowledgeGaps();
-        loadAuditEvents();
-    });
-    reindexBtn.addEventListener('click', reindexKnowledgeBase);
-    batchToggleBtn.addEventListener('click', enterBatchMode);
-    batchCancelBtn.addEventListener('click', exitBatchMode);
-    batchDeleteBtn.addEventListener('click', batchDeleteSelected);
-    batchSelectAllCb.addEventListener('change', () => {
-        const selectAll = batchSelectAllCb.checked;
-        document.querySelectorAll('#file-list .file-item').forEach(li => {
-            const filename = li.dataset.filename;
-            if (!filename) return;
-            const cb = li.querySelector('.batch-checkbox');
-            if (selectAll) {
-                selectedFiles.add(filename);
-                li.classList.add('batch-selected');
-                if (cb) cb.checked = true;
-            } else {
-                selectedFiles.delete(filename);
-                li.classList.remove('batch-selected');
-                if (cb) cb.checked = false;
-            }
-        });
-        updateBatchCount();
-    });
     knowledgeBaseSelect.addEventListener('change', () => {
         const selected = Array.from(knowledgeBaseSelect.selectedOptions).map(option => option.value);
         setCurrentKnowledgeBases(selected);
-        if (!documentModal.classList.contains('hidden')) {
-            loadFileList();
-            loadKnowledgeGaps();
-            loadAuditEvents();
-        }
     });
-    documentKnowledgeBaseSelect.addEventListener('change', () => {
-        setCurrentKnowledgeBase(documentKnowledgeBaseSelect.value);
-        loadFileList();
-        loadKnowledgeGaps();
-        loadAuditEvents();
-    });
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', uploadSelectedFile);
-    generateFaqBtn.addEventListener('click', generateFaqDraft);
     themeToggle.addEventListener('click', () => {
         const currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
         applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
