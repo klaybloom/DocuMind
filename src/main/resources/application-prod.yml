@@ -2,23 +2,40 @@
 # Activate with: --spring.profiles.active=prod
 
 spring:
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        format_sql: false
-        generate_statistics: false
   datasource:
+    url: jdbc:h2:file:${DOCUMIND_DB_PATH:${user.dir}/documents/.documind-db};DB_CLOSE_DELAY=-1;AUTO_SERVER=FALSE
+    driver-class-name: org.h2.Driver
+    username: ${DOCUMIND_DB_USERNAME:sa}
+    password: ${DOCUMIND_DB_PASSWORD:}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
       idle-timeout: 300000
       connection-timeout: 10000
+  jpa:
+    hibernate:
+      ddl-auto: ${DOCUMIND_JPA_DDL_AUTO:update}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false
 
 app:
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080}
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:60}
+  security:
+    admin-username: ${DOCUMIND_ADMIN_USERNAME:admin}
+    admin-password: ${DOCUMIND_ADMIN_PASSWORD:}
+    user-username: ${DOCUMIND_USER_USERNAME:}
+    user-password: ${DOCUMIND_USER_PASSWORD:}
+    user-knowledge-bases: ${DOCUMIND_USER_KNOWLEDGE_BASES:default}
+    min-password-length: ${DOCUMIND_MIN_PASSWORD_LENGTH:12}
 
 logging:
   level:

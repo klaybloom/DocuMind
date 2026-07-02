@@ -145,8 +145,8 @@ export DOCUMIND_MAX_FILE_SIZE=50MB
 
 也可以使用配置文件方式：
 ```bash
-cp src/main/resources/application-local.yml.template src/main/resources/application-local.yml
-# 编辑 application-local.yml，填入 API Key 和管理员密码
+cp src/main/resources/application-dev.yml.template application-dev.yml
+# 编辑 application-dev.yml，或继续用环境变量注入 API Key 和管理员密码
 ```
 
 默认管理员用户名为 `admin`，可通过 `DOCUMIND_ADMIN_USERNAME` 修改。也可以配置只允许提问的普通账号：
@@ -348,6 +348,8 @@ mvn test
 | `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
 | `DOCUMIND_DB_USERNAME` | `sa` | H2 数据库用户名 |
 | `DOCUMIND_DB_PASSWORD` | - | H2 数据库密码 |
+| `DOCUMIND_JPA_DDL_AUTO` | `update` | H2 表结构处理方式，生产环境可改为 `validate` |
+| `SPRING_PROFILES_ACTIVE` | `dev` | 运行 profile，生产环境设置为 `prod` |
 | `DOCUMIND_RAG_MAX_RESULTS` | `3` | 检索返回的最大片段数 |
 | `DOCUMIND_RAG_MIN_SCORE` | `0.65` | 向量检索最低相似度阈值 |
 | `DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO` | `0.25` | 关键词匹配最低命中率 |

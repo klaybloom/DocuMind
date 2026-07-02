@@ -15,6 +15,7 @@ Thumbs.db
 
 # Build output (will be rebuilt inside container)
 target
+node_modules
 
 # Maven wrapper (not used)
 .mvn
@@ -25,6 +26,8 @@ documents
 # Local config with secrets
 application-local.yml
 **/application-local.yml
+application-dev.yml
+**/application-dev.yml
 
 # Documentation
 docs

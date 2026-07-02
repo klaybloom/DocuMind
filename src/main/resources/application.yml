@@ -2,6 +2,8 @@ server:
   port: 8080
 
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   messages:
     basename: messages
     fallback-to-system-locale: false
@@ -9,14 +11,7 @@ spring:
     multipart:
       max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
       max-request-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
-  datasource:
-    url: jdbc:h2:file:${DOCUMIND_DB_PATH:${user.dir}/documents/.documind-db};DB_CLOSE_DELAY=-1;AUTO_SERVER=FALSE
-    driver-class-name: org.h2.Driver
-    username: ${DOCUMIND_DB_USERNAME:sa}
-    password: ${DOCUMIND_DB_PASSWORD:}
   jpa:
-    hibernate:
-      ddl-auto: update
     open-in-view: false
 
 # Application Configuration
@@ -49,22 +44,6 @@ app:
   # CORS Configuration
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080}
-
-  # DeepSeek API Configuration
-  deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:60}
-
-  # Basic authentication for internal deployment
-  security:
-    admin-username: ${DOCUMIND_ADMIN_USERNAME:admin}
-    admin-password: ${DOCUMIND_ADMIN_PASSWORD:}
-    user-username: ${DOCUMIND_USER_USERNAME:}
-    user-password: ${DOCUMIND_USER_PASSWORD:}
-    user-knowledge-bases: ${DOCUMIND_USER_KNOWLEDGE_BASES:default}
-    min-password-length: ${DOCUMIND_MIN_PASSWORD_LENGTH:12}
 
 # Actuator / Observability
 management:

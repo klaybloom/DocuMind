@@ -35,6 +35,6 @@ EXPOSE 8080
 USER documind
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD wget -qO- http://localhost:8080/api/health || exit 1
+    CMD wget -qO- http://localhost:8080/api/v1/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar --app.documents-path=$APP_DOCUMENTS_PATH"]

@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:documind;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+app:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    timeout-seconds: ${DEEPSEEK_TIMEOUT_SECONDS:60}
+
+  security:
+    admin-username: ${DOCUMIND_ADMIN_USERNAME:admin}
+    admin-password: ${DOCUMIND_ADMIN_PASSWORD:}
+    user-username: ${DOCUMIND_USER_USERNAME:}
+    user-password: ${DOCUMIND_USER_PASSWORD:}
+    user-knowledge-bases: ${DOCUMIND_USER_KNOWLEDGE_BASES:default}
+    min-password-length: ${DOCUMIND_MIN_PASSWORD_LENGTH:12}

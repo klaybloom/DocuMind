@@ -192,7 +192,7 @@ class AdminUserControllerHttpTest {
     }
 
     @Test
-    void adminCannotDisableTheLastEnabledAdmin() throws Exception {
+    void configuredAdminCannotBeDisabled() throws Exception {
         UserAccount admin = userAccountRepository.findByUsername("admin").orElseThrow();
 
         mockMvc.perform(put("/api/v1/admin/users/{id}", admin.getId())
@@ -206,7 +206,30 @@ class AdminUserControllerHttpTest {
                                 }
                                 """))
                 .andExpect(status().isConflict())
-                .andExpect(content().string(containsString("至少需要保留一个启用的管理员")));
+                .andExpect(content().string(containsString("内置管理员不能降级或停用")));
+    }
+
+    @Test
+    void configuredAdminCannotBeDemotedEvenWhenAnotherAdminExists() throws Exception {
+        saveUser(unique("backup-admin"), "backup-admin-password", "ADMIN", null, true);
+        UserAccount admin = userAccountRepository.findByUsername("admin").orElseThrow();
+
+        mockMvc.perform(put("/api/v1/admin/users/{id}", admin.getId())
+                        .with(httpBasic("admin", ADMIN_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "role": "USER",
+                                  "enabled": true,
+                                  "knowledgeBases": ["default"]
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(content().string(containsString("内置管理员不能降级或停用")));
+
+        UserAccount unchanged = userAccountRepository.findByUsername("admin").orElseThrow();
+        assertThat(unchanged.getRole()).isEqualTo("ADMIN");
+        assertThat(unchanged.isEnabled()).isTrue();
     }
 
     private void saveUser(String username, String password, String role, String knowledgeBases, boolean enabled) {

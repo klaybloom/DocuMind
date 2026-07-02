@@ -30,6 +30,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 | --- | --- | --- | --- |
 | `DEEPSEEK_API_KEY` | 是 | 由密钥管理器注入 | DeepSeek API Key |
 | `DOCUMIND_ADMIN_PASSWORD` | 是 | 由密钥管理器注入 | 管理员密码 |
+| `SPRING_PROFILES_ACTIVE` | 是 | `prod` | 生产 profile，避免加载本地开发配置 |
 | `DOCUMIND_ADMIN_USERNAME` | 否 | `admin` | 管理员用户名，默认 `admin` |
 | `DOCUMIND_USER_USERNAME` | 否 | `reader` | 只读问答账号，不配置则不启用 |
 | `DOCUMIND_USER_PASSWORD` | 否 | 由密钥管理器注入 | 只读问答账号密码 |
@@ -41,6 +42,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 | `DOCUMIND_DB_PATH` | 否 | `/opt/documind/documents/.documind-db` | H2 文件数据库路径；生产部署必须放在持久化目录 |
 | `DOCUMIND_DB_USERNAME` | 否 | `sa` | H2 数据库用户名 |
 | `DOCUMIND_DB_PASSWORD` | 否 | - | H2 数据库密码 |
+| `DOCUMIND_JPA_DDL_AUTO` | 否 | `update` | H2 表结构处理方式；首次内网部署用默认值，表结构稳定后可改为 `validate` |
 | `DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE` | 否 | `30` | 每个账号每分钟最多问答次数，`0` 表示关闭 |
 | `DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS` | 否 | `120` | 流式问答 SSE 连接超时，应用内部最低接受 `30` |
 | `DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE` | 否 | `4` | 流式问答线程池常驻线程数 |
@@ -57,7 +59,7 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 | `DEEPSEEK_MODEL` | 否 | `deepseek-v4-flash` | 使用的 DeepSeek 模型 |
 | `DEEPSEEK_TIMEOUT_SECONDS` | 否 | `60` | DeepSeek 调用超时，应用内部最低接受 `5` |
 
-`application.yml` 中没有可直接用于生产的默认 API Key 或默认密码；缺少 `DEEPSEEK_API_KEY` 或 `DOCUMIND_ADMIN_PASSWORD` 时应用会启动失败。生产环境建议显式设置 `DOCUMIND_DB_PATH`，避免数据库文件落在临时工作目录。
+`application.yml` 默认激活 `dev`，生产环境必须设置 `SPRING_PROFILES_ACTIVE=prod`。仓库中的 `application-prod.yml` 只保留环境变量占位，不包含可直接用于生产的默认 API Key 或默认密码；缺少 `DEEPSEEK_API_KEY` 或 `DOCUMIND_ADMIN_PASSWORD` 时应用会启动失败。生产环境建议显式设置 `DOCUMIND_DB_PATH`，避免数据库文件落在临时工作目录。
 
 ## 3. 构建
 
@@ -87,12 +89,14 @@ mkdir -p /opt/documind/documents
 
 ```bash
 export DEEPSEEK_API_KEY="<deepseek-api-key-from-secret-store>"
+export SPRING_PROFILES_ACTIVE=prod
 export DOCUMIND_ADMIN_USERNAME=admin
 export DOCUMIND_ADMIN_PASSWORD="<admin-password-from-secret-store>"
 export DOCUMIND_MIN_PASSWORD_LENGTH=12
 export DOCUMIND_STALE_DAYS=180
 export DOCUMIND_AUDIT_MAX_EVENTS=10000
 export DOCUMIND_DB_PATH=/opt/documind/documents/.documind-db
+export DOCUMIND_JPA_DDL_AUTO=update
 export DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE=30
 export DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS=120
 export DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE=4

@@ -32,6 +32,9 @@ public class UserAdminService {
     @Value("${app.security.min-password-length:12}")
     private int minPasswordLength;
 
+    @Value("${app.security.admin-username:admin}")
+    private String adminUsername;
+
     public UserAdminService(UserAccountRepository repository,
                             PasswordEncoder passwordEncoder,
                             DocumentService documentService) {
@@ -71,6 +74,7 @@ public class UserAdminService {
         UserAccount account = findUser(id);
         String newRole = normalizeRole(request.getRole() == null ? account.getRole() : request.getRole());
         boolean newEnabled = request.getEnabled() == null ? account.isEnabled() : request.getEnabled();
+        preventChangingConfiguredAdminAccess(account, newRole, newEnabled);
         preventRemovingLastEnabledAdmin(account, newRole, newEnabled);
 
         account.setRole(newRole);
@@ -184,6 +188,22 @@ public class UserAdminService {
         if (enabledAdmins <= 1) {
             throw new UserAdminException(HttpStatus.CONFLICT, "至少需要保留一个启用的管理员");
         }
+    }
+
+    private void preventChangingConfiguredAdminAccess(UserAccount account, String newRole, boolean newEnabled) {
+        if (!isConfiguredAdmin(account)) {
+            return;
+        }
+        if (!ROLE_ADMIN.equals(newRole) || !newEnabled) {
+            throw new UserAdminException(HttpStatus.CONFLICT, "内置管理员不能降级或停用");
+        }
+    }
+
+    private boolean isConfiguredAdmin(UserAccount account) {
+        String configured = adminUsername == null || adminUsername.trim().isEmpty()
+                ? "admin"
+                : adminUsername.trim();
+        return account.getUsername() != null && account.getUsername().equalsIgnoreCase(configured);
     }
 
     private UserAccountResponse toResponse(UserAccount account) {
