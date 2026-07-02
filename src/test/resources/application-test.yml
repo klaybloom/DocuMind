@@ -1,21 +1,26 @@
-# Test profile: H2 in-memory with non-production credentials.
+# 测试 profile：使用内存 H2 和测试专用账号配置。
 spring:
   datasource:
+    # 每次测试进程使用独立内存库，避免污染本地开发数据。
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
   jpa:
     hibernate:
+      # 测试启动时建表，结束后随内存库释放。
       ddl-auto: create-drop
 
 app:
+  # 测试文档和索引写到临时目录。
   documents-path: ${java.io.tmpdir}/documind-test
   deepseek:
+    # 测试不会调用真实 DeepSeek，这里只用于通过配置校验。
     api-key: configured-for-test-profile
     base-url: https://api.deepseek.com
     model: deepseek-v4-flash
   security:
+    # 测试使用固定账号密码，不能复用到生产环境。
     admin-username: admin
     admin-password: test-profile-admin-password
     min-password-length: 8

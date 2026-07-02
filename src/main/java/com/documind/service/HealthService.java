@@ -15,6 +15,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 健康检查服务，汇总配置、存储、索引和知识库状态。
+ */
 @Service
 public class HealthService {
 

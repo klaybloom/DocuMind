@@ -55,6 +55,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+/**
+ * RAG 核心服务，负责文档解析、切分、embedding、检索、问答和索引持久化。
+ */
 @Service
 public class RagService {
 
@@ -209,14 +212,14 @@ public class RagService {
     }
 
     /**
-     * Reindex a single document: remove its old chunks, re-parse, re-chunk, re-embed.
+     * 重新索引单个文档：移除旧片段，重新解析、切分并生成 embedding。
      */
     public synchronized void reindexDocument(String filename, String knowledgeBase) {
         String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
         String sanitizedFilename = java.nio.file.Paths.get(filename).getFileName().toString();
         String chunkPrefix = kb + "/" + sanitizedFilename + "#";
 
-        // Find the file info
+        // 先确认文件仍存在于目标知识库。
         DocumentFileInfo fileInfo = documentService.listDocumentFiles(kb).stream()
                 .filter(f -> sanitizedFilename.equals(f.getFileName()))
                 .findFirst()
@@ -225,7 +228,7 @@ public class RagService {
         documentService.markIndexing(fileInfo);
 
         try {
-            // Re-parse and re-chunk
+            // 重新解析并切分文档。
             DocumentSplitter splitter = DocumentSplitters.recursive(validChunkSize(), validChunkOverlap());
             Document document = loadDocument(fileInfo);
             document.metadata().put(Document.FILE_NAME, fileInfo.getFileName());
@@ -239,7 +242,7 @@ public class RagService {
 
             List<Embedding> newEmbeddings = embeddingModel.embedAll(newSegments).content();
 
-            // Remove old chunks for this file and add new ones
+            // 移除该文件的旧片段，再加入新片段。
             List<TextSegment> remainingSegments = indexedSegments.stream()
                     .filter(s -> !firstNonBlank(s.metadata().getString(CHUNK_ID), "").startsWith(chunkPrefix))
                     .toList();
@@ -249,7 +252,7 @@ public class RagService {
 
             rebuildStoreFromSegments(allSegments);
 
-            // Update cache
+            // 更新单文件索引缓存，避免下次全量刷新重复解析。
             String documentKey = documentKey(fileInfo);
             String fingerprint = fingerprint(fileInfo);
             Map<String, IndexedDocument> newCache = new LinkedHashMap<>(indexedDocumentCache);
@@ -267,7 +270,7 @@ public class RagService {
     }
 
     /**
-     * Remove a document's chunks from the store (used after file deletion).
+     * 从向量索引中移除某个文档的片段，通常在删除文件后调用。
      */
     public synchronized void removeDocument(String filename, String knowledgeBase) {
         String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
@@ -280,7 +283,7 @@ public class RagService {
 
         rebuildStoreFromSegments(remainingSegments);
 
-        // Remove from cache
+        // 同步移除单文件索引缓存。
         Map<String, IndexedDocument> newCache = new LinkedHashMap<>(indexedDocumentCache);
         newCache.entrySet().removeIf(e -> e.getKey().equals(kb + "/" + sanitizedFilename));
         indexedDocumentCache = Collections.unmodifiableMap(newCache);
@@ -290,12 +293,12 @@ public class RagService {
     }
 
     /**
-     * Rebuild the embedding store from a list of segments.
+     * 根据给定片段重建内存向量索引。
      */
     private void rebuildStoreFromSegments(List<TextSegment> segments) {
         this.embeddingStore = new InMemoryEmbeddingStore<>();
         if (!segments.isEmpty()) {
-            // Re-embed all segments (embeddings are not persisted with segments)
+            // TextSegment 自身不带 embedding，需要重新生成向量。
             List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
             embeddingStore.addAll(embeddings, segments);
         }
@@ -478,7 +481,7 @@ public class RagService {
         Map<String, RetrievedCandidate> candidates = new LinkedHashMap<>();
         Map<String, String> matchTypes = new LinkedHashMap<>();
 
-        // Track vector matches
+        // 记录向量检索命中的候选片段。
         for (EmbeddingMatch<TextSegment> match : matches) {
             TextSegment segment = match.embedded();
             String segmentKnowledgeBase = firstNonBlank(segment.metadata().getString(KNOWLEDGE_BASE), DocumentService.DEFAULT_KNOWLEDGE_BASE);
@@ -491,7 +494,7 @@ public class RagService {
             addCandidate(candidates, segment, match.score());
         }
 
-        // Track keyword matches
+        // 记录关键词补充命中的候选片段。
         for (RetrievedCandidate candidate : keywordCandidates(question, knowledgeBases)) {
             String chunkId = firstNonBlank(candidate.segment().metadata().getString(CHUNK_ID), String.valueOf(candidate.segment().hashCode()));
             if (!matchTypes.containsKey(chunkId)) {
@@ -507,7 +510,7 @@ public class RagService {
                 .sorted(Comparator.comparing(RetrievedCandidate::score).reversed())
                 .toList();
 
-        // Build used set (top N)
+        // 标记最终会带入回答的前 N 个片段。
         int maxResults = validMaxResults();
         Set<String> usedChunkIds = new HashSet<>();
         for (int i = 0; i < Math.min(maxResults, sortedCandidates.size()); i++) {
@@ -904,10 +907,10 @@ public class RagService {
             InMemoryEmbeddingStore<TextSegment> loaded = InMemoryEmbeddingStore.fromFile(storePath);
             this.embeddingStore = loaded;
             this.storeLoadedFromDisk = true;
-            // Mark as ready immediately; refreshIndex() will update incrementally
+            // 文件加载成功即可先标记可用，随后 refreshIndex() 会做增量更新。
             this.indexReady = true;
             logger.info("Persisted vector store loaded successfully");
-            // Also load the document cache for fingerprinting
+            // 同时加载文档 fingerprint 缓存，用于判断索引是否可复用。
             loadCacheFromFile();
             return true;
         } catch (Exception e) {
@@ -953,7 +956,7 @@ public class RagService {
         try {
             Path storePath = storeFilePath();
             Files.createDirectories(storePath.getParent());
-            // Atomic write: save to temp file, then rename
+            // 先写临时文件再原子替换，降低写入中断造成文件损坏的概率。
             Path tempPath = storePath.resolveSibling(STORE_FILE + ".tmp");
             if (embeddingStore instanceof InMemoryEmbeddingStore<TextSegment> inMemory) {
                 inMemory.serializeToFile(tempPath);

@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 知识库状态汇总，供前端展示文件数和索引情况。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

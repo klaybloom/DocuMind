@@ -6,6 +6,9 @@ import jakarta.persistence.*;
 @Table(name = "document_files", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"knowledgeBase", "fileName"})
 })
+/**
+ * 文档文件数据库实体，记录文件归属、路径、大小和索引状态。
+ */
 public class DocumentFileEntity {
 
     @Id

@@ -8,6 +8,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 管理员创建用户的请求体。
+ */
 @Data
 @NoArgsConstructor
 public class CreateUserRequest {

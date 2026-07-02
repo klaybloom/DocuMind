@@ -8,6 +8,9 @@ import jakarta.persistence.Converter;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * JPA 属性转换器，把 Map 详情序列化为 JSON 字符串保存。
+ */
 @Converter
 public class MapToStringConverter implements AttributeConverter<Map<String, Object>, String> {
 

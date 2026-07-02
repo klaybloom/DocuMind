@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 检索调试信息，记录候选片段分数和筛选原因。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -9,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
+/**
+ * 返回给前端的审计事件视图。
+ */
 public interface AuditEventRepository extends JpaRepository<AuditEventEntity, String> {
 
     List<AuditEventEntity> findAllByOrderByTimestampDesc(Pageable pageable);

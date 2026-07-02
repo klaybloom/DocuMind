@@ -13,6 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 认证状态接口，返回当前登录用户的身份和角色信息。
+ */
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {

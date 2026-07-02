@@ -11,6 +11,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Spring Security 用户加载器，从数据库读取账号和角色。
+ */
 public class DatabaseUserDetailsService implements UserDetailsService {
 
     private final UserAccountRepository repository;
@@ -26,7 +29,7 @@ public class DatabaseUserDetailsService implements UserDetailsService {
 
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority("ROLE_" + account.getRole()));
-        // Admin also gets USER role
+        // 管理员同时拥有普通用户角色，方便复用用户侧接口权限。
         if ("ADMIN".equals(account.getRole())) {
             authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         }

@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 问答请求体，包含问题、会话、知识库和调试开关。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

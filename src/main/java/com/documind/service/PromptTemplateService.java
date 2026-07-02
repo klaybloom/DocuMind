@@ -12,6 +12,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+/**
+ * Prompt 模板服务，集中生成文档问答和通用回答提示词。
+ */
 @Service
 public class PromptTemplateService {
 

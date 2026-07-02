@@ -6,6 +6,9 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * OpenAPI 文档元数据配置，给接口文档提供项目名称和版本信息。
+ */
 @Configuration
 public class OpenApiConfig {
 

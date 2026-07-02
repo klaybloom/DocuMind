@@ -7,6 +7,9 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 账号级问答限流服务，按分钟窗口限制请求频率。
+ */
 @Service
 public class RateLimitService {
 

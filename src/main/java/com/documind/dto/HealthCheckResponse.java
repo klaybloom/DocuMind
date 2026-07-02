@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 系统 readiness 汇总结果。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

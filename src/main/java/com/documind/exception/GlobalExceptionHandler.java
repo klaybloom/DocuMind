@@ -15,6 +15,9 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 全局异常处理器，把校验、权限和业务异常转换成统一 HTTP 响应。
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 文件与知识库接口，处理上传、列表、下载、删除、索引和知识缺口查询。
+ */
 @RestController
 @RequestMapping("/api/v1/files")
 public class FileController {

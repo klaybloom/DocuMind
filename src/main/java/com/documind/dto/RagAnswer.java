@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * RAG 服务内部回答结果，包含最终答案、来源和调试信息。
+ */
 @Data
 @NoArgsConstructor
 public class RagAnswer {

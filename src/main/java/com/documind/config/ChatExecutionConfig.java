@@ -7,6 +7,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
+/**
+ * 问答流式响应的线程池配置，隔离 SSE 输出与普通 Web 请求。
+ */
 @Configuration
 public class ChatExecutionConfig {
 

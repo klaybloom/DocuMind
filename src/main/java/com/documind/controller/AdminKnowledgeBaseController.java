@@ -25,6 +25,9 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 管理员知识库接口，负责知识库创建、成员维护和所有者转移。
+ */
 @RestController
 @RequestMapping("/api/v1/admin/knowledge-bases")
 public class AdminKnowledgeBaseController {

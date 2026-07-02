@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 
+/**
+ * LangChain4j 相关 Bean 配置，包含 DeepSeek 聊天模型、本地 embedding 模型和向量存储。
+ */
 @Configuration
 public class LangChainConfig {
 

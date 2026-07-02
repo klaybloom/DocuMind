@@ -9,6 +9,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 单个健康检查项，描述检查状态和提示信息。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -16,6 +16,9 @@ import java.time.Instant;
 @Table(name = "knowledge_bases", uniqueConstraints = {
         @UniqueConstraint(name = "uk_knowledge_base_name", columnNames = "name")
 })
+/**
+ * 知识库数据库实体，描述知识库名称、说明和创建者。
+ */
 public class KnowledgeBaseEntity {
 
     @Id

@@ -9,6 +9,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 返回给前端的审计事件视图。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

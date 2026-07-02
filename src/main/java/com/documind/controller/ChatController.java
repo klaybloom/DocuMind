@@ -33,6 +33,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * 问答接口，处理普通问答、流式问答和会话清理。
+ */
 @RestController
 @RequestMapping("/api/v1/chat")
 public class ChatController {

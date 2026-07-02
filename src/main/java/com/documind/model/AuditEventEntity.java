@@ -3,6 +3,9 @@ package com.documind.model;
 import jakarta.persistence.*;
 import java.util.Map;
 
+/**
+ * 返回给前端的审计事件视图。
+ */
 @Entity
 @Table(name = "audit_events")
 public class AuditEventEntity {

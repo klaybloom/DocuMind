@@ -2,6 +2,9 @@ package com.documind.model;
 
 import jakarta.persistence.*;
 
+/**
+ * 用户账号数据库实体，保存登录名、密码哈希、角色和可访问知识库。
+ */
 @Entity
 @Table(name = "user_accounts")
 public class UserAccount {
@@ -20,10 +23,10 @@ public class UserAccount {
     private boolean enabled = true;
 
     @Column(nullable = false, length = 20)
-    private String role; // "ADMIN" or "USER"
+    private String role; // ADMIN 或 USER。
 
     @Column(length = 500)
-    private String knowledgeBases; // comma-separated, null = all for ADMIN
+    private String knowledgeBases; // 逗号分隔；管理员为 null 时表示全部知识库。
 
     public UserAccount() {}
 

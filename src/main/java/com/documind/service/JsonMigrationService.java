@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 旧 JSON 元数据迁移服务，把历史文件清单和知识缺口迁移到数据库。
+ */
 @Component
 @Order(1)
 public class JsonMigrationService {
@@ -76,7 +79,7 @@ public class JsonMigrationService {
                 migratedGaps += migrateGaps(dir);
             }
 
-            // Migrate audit log (single global file)
+            // 审计日志是全局单文件，只需要从根目录迁移一次。
             migratedEvents += migrateAudit(root);
 
             if (migratedFiles + migratedGaps + migratedEvents > 0) {

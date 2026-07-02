@@ -3,7 +3,7 @@
 
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="documind"/>
 
-    <!-- Console appender with trace ID -->
+    <!-- 控制台日志，包含 traceId，便于按请求排查问题。 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] %-5level %logger{36} - %msg%n</pattern>
@@ -11,7 +11,7 @@
         </encoder>
     </appender>
 
-    <!-- JSON appender for structured logging (production) -->
+    <!-- 生产环境结构化 JSON 日志，方便日志平台采集。 -->
     <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","logger":"%logger{36}","thread":"%thread","traceId":"%X{traceId:-}","message":"%msg"}%n</pattern>
@@ -19,12 +19,12 @@
         </encoder>
     </appender>
 
-    <!-- Default: console with trace ID -->
+    <!-- 默认使用控制台日志。 -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <!-- Production profile: use JSON structured logging -->
+    <!-- prod profile 使用 JSON 结构化日志，并降低框架日志噪声。 -->
     <springProfile name="prod">
         <root level="WARN">
             <appender-ref ref="JSON"/>
@@ -35,7 +35,7 @@
         <logger name="org.springframework.security" level="WARN"/>
     </springProfile>
 
-    <!-- Non-production: console with debug for app code -->
+    <!-- 非生产环境保留应用 INFO 日志，方便本地开发观察行为。 -->
     <springProfile name="!prod">
         <logger name="com.documind" level="INFO"/>
         <logger name="dev.langchain4j" level="WARN"/>

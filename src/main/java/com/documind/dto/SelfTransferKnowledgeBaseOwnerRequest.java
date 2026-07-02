@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 所有者主动转让知识库的请求体。
+ */
 @Data
 @NoArgsConstructor
 public class SelfTransferKnowledgeBaseOwnerRequest {

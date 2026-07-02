@@ -2,6 +2,9 @@ package com.documind.model;
 
 import jakarta.persistence.*;
 
+/**
+ * 知识缺口数据库实体，记录未能从文档中回答的问题。
+ */
 @Entity
 @Table(name = "knowledge_gaps")
 public class KnowledgeGapEntity {

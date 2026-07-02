@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 返回给管理端的用户账号视图。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

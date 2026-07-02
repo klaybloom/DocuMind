@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 管理员更新用户资料、角色和知识库权限的请求体。
+ */
 @Data
 @NoArgsConstructor
 public class UpdateUserRequest {

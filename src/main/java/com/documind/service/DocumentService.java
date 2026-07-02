@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * 文档服务，负责文件存储、元数据维护、知识库目录和知识缺口记录。
+ */
 @Service
 public class DocumentService {
 
@@ -198,7 +201,7 @@ public class DocumentService {
                         .collect(Collectors.toList());
             }
 
-            // Fallback: scan filesystem (for tests without repository)
+            // 没有注入 repository 的测试场景，直接扫描文件系统。
             Path directory = knowledgeBasePath(kb);
             if (!Files.exists(directory)) {
                 return new ArrayList<>();
@@ -228,7 +231,7 @@ public class DocumentService {
             return kbs.stream().distinct().collect(Collectors.toList());
         }
 
-        // Fallback: scan filesystem
+        // 没有 repository 时扫描文件系统，保留早期测试兼容性。
         try {
             init();
             List<String> knowledgeBases = new ArrayList<>();
@@ -475,7 +478,7 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
-    // ---- Private helpers ----
+    // ---- 私有辅助方法 ----
 
     private void updateIndexState(String knowledgeBase, String filename, String status, int chunkCount, String error) {
         try {

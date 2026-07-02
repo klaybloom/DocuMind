@@ -7,6 +7,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
 
+/**
+ * Web 层跨域配置，允许受信任前端访问后端接口。
+ */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 

@@ -3,6 +3,9 @@ package com.documind.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 文档文件的前端展示信息，聚合文件元数据和索引状态。
+ */
 @Data
 @NoArgsConstructor
 public class DocumentFileInfo {

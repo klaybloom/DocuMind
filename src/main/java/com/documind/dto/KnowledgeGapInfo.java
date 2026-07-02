@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 知识缺口展示信息，记录未命中文档的问题。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -10,8 +10,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/**
+ * 启动时根据环境变量初始化管理员和可选普通用户。
+ */
 @Component
-@Order(2) // After JsonMigrationService
+@Order(2) // 在 JsonMigrationService 之后执行，保证旧数据先迁移完成。
 public class UserAccountInitializer {
 
     private static final Logger logger = LoggerFactory.getLogger(UserAccountInitializer.class);
@@ -49,17 +52,17 @@ public class UserAccountInitializer {
         }
         validatePassword("DOCUMIND_ADMIN_PASSWORD", adminPassword);
 
-        // Create or update admin account
+        // 创建或更新管理员账号。
         UserAccount admin = repository.findByUsername(adminUsername).orElseGet(() -> new UserAccount());
         admin.setUsername(adminUsername);
         admin.setPassword(passwordEncoder.encode(adminPassword));
         admin.setRole("ADMIN");
         admin.setEnabled(true);
-        admin.setKnowledgeBases(null); // admin sees all
+        admin.setKnowledgeBases(null); // 管理员可访问全部知识库。
         repository.save(admin);
         logger.info("Admin account initialized: {}", adminUsername);
 
-        // Create or update regular user account if configured
+        // 如果配置了普通用户，则创建或更新普通用户账号。
         if (userUsername != null && !userUsername.isBlank()) {
             if (userPassword == null || userPassword.isBlank()) {
                 throw new IllegalStateException("DOCUMIND_USER_USERNAME 和 DOCUMIND_USER_PASSWORD 必须同时配置");

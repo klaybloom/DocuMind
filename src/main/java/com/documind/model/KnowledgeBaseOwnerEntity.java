@@ -15,6 +15,9 @@ import java.time.Instant;
 @Table(name = "knowledge_base_owners", uniqueConstraints = {
         @UniqueConstraint(name = "uk_knowledge_base_owner", columnNames = {"knowledge_base", "username"})
 })
+/**
+ * 知识库所有者关系实体，表示用户对知识库的管理权限。
+ */
 public class KnowledgeBaseOwnerEntity {
 
     @Id

@@ -8,6 +8,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 创建知识库的请求体。
+ */
 @Data
 @NoArgsConstructor
 public class CreateKnowledgeBaseRequest {

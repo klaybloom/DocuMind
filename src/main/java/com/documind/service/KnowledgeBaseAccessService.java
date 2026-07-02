@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 知识库访问控制服务，判断用户可访问哪些知识库。
+ */
 @Service
 public class KnowledgeBaseAccessService {
 

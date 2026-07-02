@@ -14,6 +14,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * Spring Security 配置，定义登录、退出、接口权限和静态资源访问规则。
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -55,9 +58,8 @@ public class SecurityConfig {
     }
 
     /**
-     * Returns a 401 without the "WWW-Authenticate: Basic" header,
-     * preventing the browser from showing its native login dialog.
-     * The frontend handles authentication via its own login page.
+     * 返回 401 时不带 WWW-Authenticate 头，避免浏览器弹出原生 Basic 登录框。
+     * 前端会使用自己的登录界面处理认证。
      */
     private AuthenticationEntryPoint noWwwAuthenticateEntryPoint() {
         return (HttpServletRequest request, HttpServletResponse response,

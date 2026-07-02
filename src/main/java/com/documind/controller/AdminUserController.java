@@ -26,6 +26,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 管理员用户接口，提供账号创建、更新、禁用和重置密码能力。
+ */
 @RestController
 @RequestMapping("/api/v1/admin/users")
 public class AdminUserController {

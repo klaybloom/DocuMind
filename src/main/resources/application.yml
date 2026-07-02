@@ -1,61 +1,82 @@
 server:
+  # 默认本地服务端口。
   port: 8080
 
 spring:
   profiles:
+    # 默认使用 dev profile；生产环境请显式设置 SPRING_PROFILES_ACTIVE=prod。
     active: ${SPRING_PROFILES_ACTIVE:dev}
   messages:
+    # Bean Validation 和业务提示的消息文件前缀。
     basename: messages
     fallback-to-system-locale: false
   servlet:
     multipart:
+      # 上传文件和整次请求共用同一个大小上限，避免前后端限制不一致。
       max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
       max-request-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
   jpa:
+    # Controller 不持有懒加载数据库会话，避免视图层触发隐式查询。
     open-in-view: false
 
-# Application Configuration
+# 应用业务配置。
 app:
-  # Document storage directory
+  # 原始文档、H2 文件库和索引文件默认放在项目 documents 目录。
   documents-path: ${user.dir}/documents
   documents:
+    # 超过该天数的文档会在健康检查中提示为长期未更新。
     stale-days: ${DOCUMIND_STALE_DAYS:180}
+    # 业务层文件大小上限，应与 servlet multipart 限制保持一致。
     max-file-size: ${DOCUMIND_MAX_FILE_SIZE:50MB}
 
   audit:
+    # 审计列表接口最多返回的事件数量。
     max-events: ${DOCUMIND_AUDIT_MAX_EVENTS:10000}
 
   chat:
+    # 每个账号每分钟问答次数；0 表示关闭限流。
     rate-limit-per-minute: ${DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE:30}
     stream:
+      # 流式问答的整体超时时间。
       timeout-seconds: ${DOCUMIND_CHAT_STREAM_TIMEOUT_SECONDS:120}
+      # SSE 问答线程池核心线程数。
       core-pool-size: ${DOCUMIND_CHAT_STREAM_CORE_POOL_SIZE:4}
+      # SSE 问答线程池最大线程数。
       max-pool-size: ${DOCUMIND_CHAT_STREAM_MAX_POOL_SIZE:8}
+      # SSE 问答排队容量，防止突发请求压垮服务。
       queue-capacity: ${DOCUMIND_CHAT_STREAM_QUEUE_CAPACITY:100}
 
   rag:
+    # 最终带入 LLM 的文档片段数量。
     max-results: ${DOCUMIND_RAG_MAX_RESULTS:3}
+    # 向量检索最低相似度，低于该值不会作为直接命中。
     min-score: ${DOCUMIND_RAG_MIN_SCORE:0.65}
+    # 关键词补充检索的最低命中比例。
     keyword-min-hit-ratio: ${DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO:0.25}
+    # 向量检索候选池大小，再从候选中筛选最终片段。
     retrieval-pool-size: ${DOCUMIND_RAG_RETRIEVAL_POOL_SIZE:50}
+    # 文档切分长度。
     chunk-size: ${DOCUMIND_RAG_CHUNK_SIZE:500}
+    # 相邻片段重叠长度，帮助跨段问题保留上下文。
     chunk-overlap: ${DOCUMIND_RAG_CHUNK_OVERLAP:50}
 
-  # CORS Configuration
+  # CORS 配置，生产环境必须改成真实域名。
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080}
 
-# Actuator / Observability
+# Actuator 与可观测性配置。
 management:
   endpoints:
     web:
       exposure:
+        # 暴露健康检查、基础信息、指标和 Prometheus 采集端点。
         include: health,info,metrics,prometheus
   endpoint:
     health:
+      # 只有授权用户可看健康检查详情。
       show-details: when-authorized
 
-# Logging
+# 日志级别配置。
 logging:
   level:
     com.documind: INFO

@@ -18,6 +18,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 管理员用户服务，封装账号增改、密码校验和知识库授权。
+ */
 @Service
 public class UserAdminService {
 

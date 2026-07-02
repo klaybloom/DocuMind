@@ -3,6 +3,9 @@ package com.documind.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 文件上传后的响应结果。
+ */
 @Data
 @NoArgsConstructor
 public class FileUploadResponse {

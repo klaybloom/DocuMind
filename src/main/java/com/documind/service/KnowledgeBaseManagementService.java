@@ -25,6 +25,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 知识库管理服务，封装创建、成员维护和所有者权限校验。
+ */
 @Service
 public class KnowledgeBaseManagementService {
 

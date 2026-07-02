@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 文档文件仓库，支持按知识库、文件名和索引状态查询。
+ */
 public interface DocumentFileRepository extends JpaRepository<DocumentFileEntity, Long> {
 
     List<DocumentFileEntity> findByKnowledgeBase(String knowledgeBase);

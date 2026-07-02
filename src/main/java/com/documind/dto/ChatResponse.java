@@ -8,6 +8,9 @@ import lombok.Setter;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 问答响应体，包含答案、引用来源和检索调试信息。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

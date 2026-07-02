@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 更新知识库所有者的请求体。
+ */
 @Data
 @NoArgsConstructor
 public class UpdateKnowledgeBaseOwnersRequest {

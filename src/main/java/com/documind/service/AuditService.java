@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * 审计服务，统一记录上传、问答、权限变更等关键操作。
+ */
 @Service
 public class AuditService {
 
