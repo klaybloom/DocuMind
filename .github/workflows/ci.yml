@@ -88,7 +88,7 @@ jobs:
         with:
           name: documind-jar
           path: target/documind-*.jar
-          retention-days: 30
+          retention-days: 3
 
   dependency-check:
     name: Dependency vulnerability scan
