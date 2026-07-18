@@ -166,6 +166,31 @@ class RagServiceTest {
     }
 
     @Test
+    void followUpQuestionUsesPreviousQuestionForRetrievalOnly() {
+        RecordingChatModel chatModel = new RecordingChatModel("基于鸿蒙文档回答。");
+        TestDocumentService documentService = new TestDocumentService();
+        RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
+        TextSegment segment = TextSegment.from(
+                "鸿蒙系统核心特性包括分布式架构、一次开发多端部署和弹性部署。",
+                metadata("HarmonyOS/core-features.txt#1")
+        );
+        ReflectionTestUtils.setField(ragService, "indexedSegments", List.of(segment));
+
+        RagAnswer firstAnswer = ragService.ask("鸿蒙系统核心特性有哪些？", "session-follow-up", "HarmonyOS");
+        RagAnswer followUpAnswer = ragService.ask("这些特性哪个最重要？", "session-follow-up", "HarmonyOS");
+
+        assertThat(firstAnswer.isFromDocuments()).isTrue();
+        assertThat(followUpAnswer.isFromDocuments()).isTrue();
+        assertThat(followUpAnswer.getSources())
+                .extracting("fileName")
+                .containsExactly("core-features.txt");
+
+        UserMessage currentQuestionMessage = (UserMessage) chatModel.lastMessages.get(chatModel.lastMessages.size() - 1);
+        assertThat(currentQuestionMessage.singleText()).contains("这些特性哪个最重要？");
+        assertThat(currentQuestionMessage.singleText()).doesNotContain("鸿蒙系统核心特性有哪些？\n这些特性哪个最重要？");
+    }
+
+    @Test
     void askUsesConfiguredMaxResultsForDocumentSources() {
         RecordingChatModel chatModel = new RecordingChatModel("基于文档回答。");
         TestDocumentService documentService = new TestDocumentService();

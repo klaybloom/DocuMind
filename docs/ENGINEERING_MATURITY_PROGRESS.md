@@ -1,8 +1,9 @@
 # DocuMind 工程化完成度优化进度
 
-**分支**: `feat/engineering-maturity-and-evaluation`
+**原始分支**: `feat/engineering-maturity-and-evaluation`
 **开始时间**: 2026-06-24
 **Phase 1-2 完成时间**: 2026-06-24
+**当前更新**: 2026-07-03，本文前半部分保留历史阶段记录，最新状态以 README、ENGINEERING_GAPS 和当前测试结果为准。
 
 ## 优化计划
 
@@ -97,6 +98,6 @@
 
 ## 测试状态
 
-- **当前测试数**: 69
-- **通过**: 69
-- **失败**: 0
+- **2026-06-24 阶段测试数**: 69
+- **2026-07-03 当前默认测试基线**: `mvn test` 通过 106 个测试
+- **额外验证**: `PostgresIntegrationIT` 通过本机 Docker PostgreSQL 或 CI service container 单独执行

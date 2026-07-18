@@ -39,7 +39,7 @@ app:
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-**注意**：`application-local.yml` 已添加到 `.gitignore`，不会被提交到 Git。
+**注意**：`application-local.yml` 和 `application-dev.yml` 已添加到 `.gitignore`，不会被提交到 Git。发布构建还必须通过 Maven resources 和 `.dockerignore` 排除这两个文件；打包后可用 `jar tf target/documind-*.jar | rg "(^|/)application-(dev|local)\\.yml$"` 检查，命中即表示构建产物不合格。
 
 ### 方法 3：使用 Spring Boot 启动参数
 
@@ -54,7 +54,7 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--app.deepseek.api-key=${DEEPSE
 应用使用 Spring Security Basic Auth：
 
 - `ADMIN`：可以聊天，也可以上传、下载、删除、刷新知识库文档和处理知识缺口。
-- `USER`：只能聊天，不能管理文档。
+- `USER`：可以聊天；如果被设置为某知识库 owner，可以管理该知识库的成员和文档。
 
 默认管理员用户名为 `admin`，密码必须通过 `DOCUMIND_ADMIN_PASSWORD` 或本地配置文件提供。普通用户账号为可选配置：
 
@@ -108,11 +108,11 @@ export DOCUMIND_STALE_DAYS=180
 
 ### 审计记录
 
-应用会把关键操作写入 `documents/.documind-audit.log`：
+应用会把关键操作写入数据库中的 `audit_events` 表：
 
 - 问答请求：账号、知识库、会话 ID、问题长度、是否流式请求、限流记录、清理会话记忆。
 - 文档操作：上传、下载、删除、刷新索引。
-- 运营操作：生成 FAQ 草稿、处理知识缺口。
+- 运营操作：生成 FAQ 草稿、处理知识缺口、用户管理、知识库 owner 和成员管理。
 
 审计记录不保存完整问题正文，也不会保存 API Key。`documents/` 目录如果挂载到共享存储或备份系统，需要按内部日志策略控制访问权限。
 
@@ -122,7 +122,7 @@ export DOCUMIND_STALE_DAYS=180
 export DOCUMIND_AUDIT_MAX_EVENTS=10000
 ```
 
-设置为 `0` 表示不在应用内裁剪审计日志，由外部日志系统或文件轮转策略负责。
+设置为 `0` 表示不在应用内裁剪审计记录，由外部数据库保留策略负责。
 
 ### 问答频率限制
 
@@ -147,8 +147,8 @@ DeepSeek 调用默认 60 秒超时，可通过 `DEEPSEEK_TIMEOUT_SECONDS` 调整
 
 ### 健康检查
 
-- `GET /api/health`：无需登录，只返回整体存活状态和时间，适合负载均衡或进程保活检查。
-- `GET /api/health/readiness`：仅管理员可访问，会返回 DeepSeek 配置是否完整、文档目录是否可读写、索引是否初始化、知识库文件统计和问答运行参数。
+- `GET /api/v1/health`：无需登录，只返回整体存活状态和时间，适合负载均衡或进程保活检查。
+- `GET /api/v1/health/readiness`：仅管理员可访问，会返回 DeepSeek 配置是否完整、文档目录是否可读写、索引是否初始化、知识库文件统计和问答运行参数。
 
 readiness 不返回 API Key 原文，只返回 `apiKeyConfigured=true/false`；也不返回任何账号密码。
 

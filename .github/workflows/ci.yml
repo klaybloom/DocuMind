@@ -83,12 +83,19 @@ jobs:
       - name: Build package
         run: mvn package -DskipTests -B
 
+      - name: Verify local configs are excluded from JAR
+        run: |
+          if jar tf target/documind-1.0.0-SNAPSHOT.jar | grep -E '(^|/)application-(dev|local)\.yml$'; then
+            echo "Local config file was packaged into the JAR"
+            exit 1
+          fi
+
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: documind-jar
           path: target/documind-*.jar
-          retention-days: 30
+          retention-days: 3
 
   dependency-check:
     name: Dependency vulnerability scan
@@ -110,7 +117,7 @@ jobs:
           mvn org.owasp:dependency-check-maven:check \
             -DfailBuildOnCVSS=9 \
             -DsuppressionFile=.github/dependency-check-suppressions.xml \
-            -B || true
+            -B
 
       - name: Upload dependency-check report
         if: always()
@@ -120,11 +127,48 @@ jobs:
           path: target/dependency-check-report.html
           retention-days: 30
 
+  postgres-integration:
+    name: PostgreSQL integration
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: documind
+          POSTGRES_USER: documind
+          POSTGRES_PASSWORD: documind_dev_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U documind -d documind"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Run PostgreSQL integration test
+        env:
+          SPRING_PROFILES_ACTIVE: postgres
+          DOCUMIND_DB_URL: jdbc:postgresql://localhost:5432/documind
+          DOCUMIND_DB_USERNAME: documind
+          DOCUMIND_DB_PASSWORD: documind_dev_password
+          DOCUMIND_ADMIN_PASSWORD: postgres-integration-admin-password
+        run: mvn -B -Dtest=PostgresIntegrationIT test
+
   docker:
-    name: Build Docker image
+    name: Build and scan Docker image
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
@@ -137,6 +181,24 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: documind:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan Docker image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: documind:${{ github.sha }}
+          format: table
+          output: trivy-image-report.txt
+          severity: HIGH,CRITICAL
+          exit-code: 1
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-report
+          path: trivy-image-report.txt
+          retention-days: 30

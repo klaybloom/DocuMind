@@ -23,6 +23,8 @@ mvn test
 target/rag-evaluation-report.json
 ```
 
+面向维护和简历展示的说明见 [RAG_EVALUATION_REPORT.md](./RAG_EVALUATION_REPORT.md)。
+
 默认通过率门槛为 90%。低于门槛时，`RagQualityEvaluationTest` 会失败，并在失败信息中列出未通过用例。
 
 ## 结构化测试集

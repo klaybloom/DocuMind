@@ -16,7 +16,7 @@ spring:
       connection-timeout: 10000
   jpa:
     hibernate:
-      # 当前项目尚未接入 Flyway/Liquibase，生产默认仍使用 update。
+      # H2 单实例 profile 默认仍使用 update；PostgreSQL profile 使用 Flyway + validate。
       ddl-auto: ${DOCUMIND_JPA_DDL_AUTO:update}
     open-in-view: false
     properties:

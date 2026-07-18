@@ -327,12 +327,13 @@ public class RagService {
 
             List<String> selectedKnowledgeBases = normalizeKnowledgeBases(knowledgeBase);
             String kb = knowledgeBaseKey(selectedKnowledgeBases);
-            RetrievalResult result = retrieveSources(question, selectedKnowledgeBases, kb, debug);
+            MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
+            String retrievalQuestion = contextualRetrievalQuestion(question, memory);
+            RetrievalResult result = retrieveSources(retrievalQuestion, selectedKnowledgeBases, kb, debug);
             List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
                 selectedKnowledgeBases.forEach(selected -> documentService.recordKnowledgeGap(selected, question, sessionId));
             }
-            MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
             List<ChatMessage> messages = buildMessages(memory, question, sources);
             String response = chatModel.chat(messages).aiMessage().text();
 
@@ -386,12 +387,13 @@ public class RagService {
 
             List<String> selectedKnowledgeBases = normalizeKnowledgeBases(knowledgeBase);
             String kb = knowledgeBaseKey(selectedKnowledgeBases);
-            RetrievalResult result = retrieveSources(question, selectedKnowledgeBases, kb, debug);
+            MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
+            String retrievalQuestion = contextualRetrievalQuestion(question, memory);
+            RetrievalResult result = retrieveSources(retrievalQuestion, selectedKnowledgeBases, kb, debug);
             List<SourceReference> sources = result.sources();
             if (sources.isEmpty()) {
                 selectedKnowledgeBases.forEach(selected -> documentService.recordKnowledgeGap(selected, question, sessionId));
             }
-            MessageWindowChatMemory memory = getOrCreateMemory(sessionId, kb);
             List<ChatMessage> messages = buildMessages(memory, question, sources);
             StringBuilder generated = new StringBuilder();
 
@@ -709,6 +711,38 @@ public class RagService {
         String id = isBlank(sessionId) ? "default" : sessionId;
         return sessionMemories.get(knowledgeBase + ":" + id,
                 ignored -> MessageWindowChatMemory.withMaxMessages(10));
+    }
+
+    private String contextualRetrievalQuestion(String question, MessageWindowChatMemory memory) {
+        String previousQuestion = latestUserQuestion(memory);
+        if (isBlank(previousQuestion) || !needsPreviousQuestion(question)) {
+            return question;
+        }
+        return previousQuestion + "\n" + question;
+    }
+
+    private String latestUserQuestion(MessageWindowChatMemory memory) {
+        List<ChatMessage> messages = memory.messages();
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message instanceof UserMessage userMessage) {
+                return userMessage.singleText();
+            }
+        }
+        return null;
+    }
+
+    private boolean needsPreviousQuestion(String question) {
+        if (isBlank(question)) {
+            return false;
+        }
+        String normalized = question.trim().toLowerCase(Locale.ROOT);
+        List<String> contextMarkers = List.of(
+                "这些", "那些", "上述", "以上", "前面", "刚才", "这个", "那个",
+                "它", "他们", "它们", "其", "该", "此", "哪个", "哪一个",
+                "分别", "其中", "最重要", "更重要"
+        );
+        return contextMarkers.stream().anyMatch(normalized::contains);
     }
 
     public int clearSessionMemory(String sessionId) {

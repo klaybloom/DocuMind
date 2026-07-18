@@ -1,8 +1,8 @@
 # DocuMind - 智能文档 RAG 助手
 
 [![Java](https://img.shields.io/badge/Java-17-blue.svg)](https://openjdk.org/projects/jdk/17/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.1-green.svg)](https://spring.io/projects/spring-boot)
-[![LangChain4j](https://img.shields.io/badge/LangChain4j-0.27.1-orange.svg)](https://github.com/langchain4j/langchain4j)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.5-green.svg)](https://spring.io/projects/spring-boot)
+[![LangChain4j](https://img.shields.io/badge/LangChain4j-1.16.3-orange.svg)](https://github.com/langchain4j/langchain4j)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 DocuMind 是一款基于 Java Spring Boot 和 LangChain4j 构建的智能文档检索助手。它利用检索增强生成 (RAG) 技术，能够针对用户上传的文档提供精准的解读和问答，并在文档库未命中时自动切换至通用的 AI 知识库。
@@ -20,7 +20,7 @@ graph TD
         D --> F["DocumentService<br/>文件存储 + Manifest"]
         E --> G["EmbeddingModel<br/>All-MiniLM-L6-V2"]
         E --> H["InMemoryEmbeddingStore<br/>向量存储"]
-        E --> I["ChatLanguageModel<br/>DeepSeek API"]
+        E --> I["ChatModel<br/>DeepSeek API"]
         E --> F
     end
 
@@ -33,7 +33,7 @@ graph TD
 - **前端**：原生 HTML5/JS/CSS 单页应用，通过 SSE 实现流式回答展示
 - **RagService**：混合检索（向量相似度 + 关键词匹配）、会话记忆、分块策略
 - **InMemoryEmbeddingStore**：进程内向量库，定期序列化到 `.documind-vectors.json`
-- **DocumentService**：文件系统存储 + H2/JPA 元数据管理
+- **DocumentService**：文件系统存储 + JPA 元数据管理，默认 H2，PostgreSQL profile 支持 Flyway 迁移验证
 
 ## 🔄 RAG 工作流程
 
@@ -55,7 +55,7 @@ sequenceDiagram
     RS->>EM: embed(question)
     EM-->>RS: queryEmbedding
 
-    RS->>VS: findRelevant(queryEmbedding, topK=50, minScore=0.65)
+    RS->>VS: search(queryEmbedding, maxResults=50, minScore=0.65)
     VS-->>RS: 向量匹配结果
 
     RS->>RS: keywordCandidates() 关键词补充匹配
@@ -104,11 +104,12 @@ sequenceDiagram
 
 ## 🛠️ 技术栈
 
-- **后端**: Java 17, Spring Boot 3.2.1
-- **AI 框架**: [LangChain4j](https://github.com/langchain4j/langchain4j)
+- **后端**: Java 17, Spring Boot 3.4.5
+- **AI 框架**: [LangChain4j](https://github.com/langchain4j/langchain4j) 1.16.3
 - **嵌入模型**: All-MiniLM-L6-V2 (本地运行)
 - **大语言模型**: DeepSeek API (兼容 OpenAI 格式)
 - **前端**: 原生 HTML5, Vanilla JS, CSS3 (针对现代浏览器优化)
+- **数据库**: H2（默认本地/单实例）+ PostgreSQL profile（Flyway schema 迁移验证）
 
 ## 🚀 快速启动
 
@@ -145,8 +146,8 @@ export DOCUMIND_MAX_FILE_SIZE=50MB
 
 也可以使用配置文件方式：
 ```bash
-cp src/main/resources/application-dev.yml.template application-dev.yml
-# 编辑 application-dev.yml，或继续用环境变量注入 API Key 和管理员密码
+cp src/main/resources/application-local.yml.template src/main/resources/application-local.yml
+# 编辑 application-local.yml，并用 -Dspring.profiles.active=local 启用
 ```
 
 默认管理员用户名为 `admin`，可通过 `DOCUMIND_ADMIN_USERNAME` 修改。也可以配置只允许提问的普通账号：
@@ -212,30 +213,41 @@ mvn spring-boot:run
 
 ```text
 DocuMind/
-├── src/main/java/com/demo/ragchat/
-│   ├── controller/          # ChatController, FileController, HealthController
+├── src/main/java/com/documind/
+│   ├── controller/          # ChatController, FileController, Admin*Controller 等
 │   ├── service/             # RagService, DocumentService, AuditService 等
-│   ├── config/              # LangChain, Security, CORS 配置
+│   ├── config/              # LangChain, Security, CORS, OpenAPI, TraceId 配置
+│   ├── repository/          # Spring Data JPA Repository
+│   ├── model/               # JPA Entity 和 Converter
 │   ├── dto/                 # 请求/响应 DTO
 │   └── exception/           # 全局异常处理
 ├── src/main/resources/
-│   ├── static/              # 前端 (index.html, app.js, style.css)
-│   └── application.yml      # 应用配置
-├── documents/               # 上传文档存储目录
+│   ├── db/migration/        # PostgreSQL Flyway migration
+│   ├── prompts/             # RAG prompt 模板
+│   ├── static/              # 前端 (index.html, admin.html, JS/CSS)
+│   ├── application.yml      # 公共配置
+│   ├── application-dev.yml.template # 本地 H2 开发 profile 模板
+│   ├── application-prod.yml # H2 单实例生产 profile
+│   └── application-postgres.yml # PostgreSQL/Flyway 验证 profile
+├── docs/                    # 部署、RAG 评测、工程成熟度和简历说明
+├── docker-compose.postgres.yml
+├── documents/               # 本地上传文档和索引文件目录
 └── pom.xml                  # Maven 依赖
 ```
+
+真实的 `application-dev.yml` / `application-local.yml` 是本机私有配置，已被 Git、Docker build context 和 Maven resources 排除，不会进入发布 JAR。
 
 ## 知识库和索引
 
 - 默认知识库使用 `documents/` 根目录，新增知识库使用 `documents/<知识库名>/` 子目录。
-- 文档元数据、索引状态、知识缺口和审计记录保存在 H2 文件数据库中。
+- 文档元数据、索引状态、知识缺口和审计记录默认保存在 H2 中；PostgreSQL profile 使用 Flyway 管理关系型 schema。
 - 旧版本的 `.documind-files.json`、`.documind-gaps.json` 和 `.documind-audit.log` 会在启动时迁移。
 - 文档过期提示按 `DOCUMIND_STALE_DAYS` 判断；默认 180 天。
 - 向量库运行时仍使用内存实现，同时会持久化到 `.documind-vectors.json`；服务重启后优先加载快照，并按文件变化增量刷新。
 - 运行过程中刷新索引会复用已成功索引且未变化文件的解析和嵌入结果，只处理新增或更新文件。
 - RAG 检索参数可通过 `DOCUMIND_RAG_MAX_RESULTS`、`DOCUMIND_RAG_MIN_SCORE`、`DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO`、`DOCUMIND_RAG_RETRIEVAL_POOL_SIZE`、`DOCUMIND_RAG_CHUNK_SIZE`、`DOCUMIND_RAG_CHUNK_OVERLAP` 调整。
-- 真实答案质量建议按 [RAG_EVALUATION.md](./docs/RAG_EVALUATION.md) 的问题集定期检查。
-- 服务器部署、备份、健康检查和升级流程见 [DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
+- 真实答案质量建议按 [RAG_EVALUATION.md](./docs/RAG_EVALUATION.md) 的问题集定期检查，当前评测说明见 [RAG_EVALUATION_REPORT.md](./docs/RAG_EVALUATION_REPORT.md)。
+- 服务器部署、CloudBase Run 容器部署准备、备份、健康检查和升级流程见 [DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
 
 ## 测试
 
@@ -244,24 +256,23 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 mvn test
 ```
 
-当前测试覆盖（89 个测试）：
+当前默认测试基线：`mvn test` 通过 107 个测试，覆盖文档存储、RAG 检索、流式问答、权限、审计、限流、健康检查、用户管理、知识库管理、前端 API/SSE 工具函数和 RAG 自动化评测。默认测试不调用真实 DeepSeek API。
 
-- `DocumentServiceTest`（12 个）：知识库目录、manifest、负责人、索引状态、过期提示、知识缺口、FAQ 草稿、缺口处理、**文件 Hash 去重**。
-- `RagServiceTest`（13 个）：无命中文档时的通用模型路径、流式失败处理、弱关键词过滤、来源数量配置、会话记忆边界、向量持久化。
-- `ChatControllerHttpTest`（10 个）：问答审计、未授权知识库拒绝、限流、验证错误、会话清理、审计字段过滤。
-- `FileControllerHttpTest`（9 个）：下载审计、文件不存在 404、无效输入 400、删除、列表错误、缺口错误、FAQ 错误。
-- `AdminUserControllerHttpTest`（5 个）：后台用户接口权限、列表脱敏、新建/更新/重置密码、弱密码拒绝、最后管理员保护。
-- `AuditServiceTest`（5 个）：审计事件写入、最近记录排序、敏感字段过滤。
-- `HealthServiceTest`（4 个）：运行状态、配置缺失、无文档、问答运行参数的 readiness 状态。
-- `KnowledgeBaseAccessServiceTest`（7 个）：管理员、普通用户、通配符、禁用用户和缺失用户的知识库访问范围。
-- `SecurityConfigTest`（6 个）：管理员账号、普通用户账号、角色和必填配置校验。
-- `RateLimitServiceTest`（3 个）：限流拒绝、独立账号、零限制禁用。
-- `ChatRequestTest`（3 个）：中文输入、无效字符、超长消息。
-- `LangChainConfigTest`（2 个）：超时值、最小超时。
-- `ChatExecutionConfigTest`（1 个）：线程池大小规范化。
-- `WebConfigTest`（1 个）：CORS 多来源配置解析。
+前端模块测试：
 
-这些测试不调用真实 DeepSeek API，也不验证模型回答质量；回答质量仍需使用固定问题集人工评测。
+```bash
+npm run test:frontend
+```
+
+PostgreSQL/Flyway 集成验证需先启动本机 Docker PostgreSQL：
+
+```bash
+docker compose -f docker-compose.postgres.yml up -d
+SPRING_PROFILES_ACTIVE=postgres mvn -B -Dtest=PostgresIntegrationIT test
+docker compose -f docker-compose.postgres.yml down -v
+```
+
+PostgreSQL 测试会验证 Flyway 从空库初始化 schema，并覆盖账号、文档元数据、知识缺口、审计和知识库权限路径。
 
 ## HTTP 接口
 
@@ -346,10 +357,12 @@ mvn test
 | `DOCUMIND_MAX_FILE_SIZE` | `50MB` | 单文件大小上限 |
 | `DOCUMIND_STALE_DAYS` | `180` | 文档过期天数阈值 |
 | `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
-| `DOCUMIND_DB_USERNAME` | `sa` | H2 数据库用户名 |
-| `DOCUMIND_DB_PASSWORD` | - | H2 数据库密码 |
+| `DOCUMIND_DB_URL` | - | PostgreSQL profile JDBC URL，启用 `postgres` profile 时必填 |
+| `DOCUMIND_DB_USERNAME` | `sa` / `documind` | H2 或 PostgreSQL 数据库用户名 |
+| `DOCUMIND_DB_PASSWORD` | - | H2 或 PostgreSQL 数据库密码，启用 `postgres` profile 时必填 |
 | `DOCUMIND_JPA_DDL_AUTO` | `update` | H2 表结构处理方式，生产环境可改为 `validate` |
 | `SPRING_PROFILES_ACTIVE` | `dev` | 运行 profile，生产环境设置为 `prod` |
+| `PORT` | `8080` | HTTP 监听端口，CloudBase Run 等容器平台可注入 |
 | `DOCUMIND_RAG_MAX_RESULTS` | `3` | 检索返回的最大片段数 |
 | `DOCUMIND_RAG_MIN_SCORE` | `0.65` | 向量检索最低相似度阈值 |
 | `DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO` | `0.25` | 关键词匹配最低命中率 |

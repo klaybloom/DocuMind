@@ -1,6 +1,6 @@
 server:
-  # 默认本地服务端口。
-  port: 8080
+  # CloudBase Run 等容器平台会注入 PORT；本地默认仍使用 8080。
+  port: ${PORT:8080}
 
 spring:
   profiles:
@@ -18,6 +18,9 @@ spring:
   jpa:
     # Controller 不持有懒加载数据库会话，避免视图层触发隐式查询。
     open-in-view: false
+  flyway:
+    # 默认 H2 开发/测试仍由 Hibernate 建表；PostgreSQL profile 单独启用 Flyway。
+    enabled: false
 
 # 应用业务配置。
 app:

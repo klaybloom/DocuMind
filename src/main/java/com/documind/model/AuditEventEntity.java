@@ -26,7 +26,7 @@ public class AuditEventEntity {
     private String fileName;
 
     @Convert(converter = MapToStringConverter.class)
-    @Column(columnDefinition = "CLOB")
+    @Column(columnDefinition = "TEXT")
     private Map<String, Object> details;
 
     protected AuditEventEntity() {}
