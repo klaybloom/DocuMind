@@ -1,6 +1,5 @@
 package com.documind.config;
 
-import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -8,7 +7,6 @@ import dev.langchain4j.model.embedding.onnx.allminilml6v2.AllMiniLmL6V2Embedding
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
-import dev.langchain4j.store.embedding.EmbeddingStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 /**
- * LangChain4j 相关 Bean 配置，包含 DeepSeek 聊天模型、本地 embedding 模型和向量存储。
+ * LangChain4j 相关 Bean 配置，包含 DeepSeek 聊天模型和本地 embedding 模型。
  */
 @Configuration
 public class LangChainConfig {
@@ -61,11 +59,6 @@ public class LangChainConfig {
     public EmbeddingModel embeddingModel() {
         // 使用本地嵌入模型以提高效率和降低成本
         return new AllMiniLmL6V2EmbeddingModel();
-    }
-
-    @Bean
-    public EmbeddingStore<TextSegment> embeddingStore() {
-        return new dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore<>();
     }
 
     Duration modelTimeout() {

@@ -4,8 +4,8 @@ server:
 
 spring:
   profiles:
-    # 默认使用 dev profile；生产环境请显式设置 SPRING_PROFILES_ACTIVE=prod。
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    # 所有环境统一使用 MySQL 和 Redis。
+    active: ${SPRING_PROFILES_ACTIVE:mysql}
   messages:
     # Bean Validation 和业务提示的消息文件前缀。
     basename: messages
@@ -19,12 +19,13 @@ spring:
     # Controller 不持有懒加载数据库会话，避免视图层触发隐式查询。
     open-in-view: false
   flyway:
-    # 默认 H2 开发/测试仍由 Hibernate 建表；PostgreSQL profile 单独启用 Flyway。
-    enabled: false
+    # MySQL 是唯一关系型存储，所有表由 Flyway 管理。
+    enabled: true
+    locations: classpath:db/migration/mysql
 
 # 应用业务配置。
 app:
-  # 原始文档、H2 文件库和索引文件默认放在项目 documents 目录。
+  # 原始文档默认放在项目 documents 目录；向量数据由 Qdrant 持久化。
   documents-path: ${user.dir}/documents
   documents:
     # 超过该天数的文档会在健康检查中提示为长期未更新。
@@ -62,6 +63,19 @@ app:
     chunk-size: ${DOCUMIND_RAG_CHUNK_SIZE:500}
     # 相邻片段重叠长度，帮助跨段问题保留上下文。
     chunk-overlap: ${DOCUMIND_RAG_CHUNK_OVERLAP:50}
+
+  vector-store:
+    qdrant:
+      host: ${DOCUMIND_QDRANT_HOST:127.0.0.1}
+      grpc-port: ${DOCUMIND_QDRANT_GRPC_PORT:6334}
+      health-url: ${DOCUMIND_QDRANT_HEALTH_URL:http://127.0.0.1:6333/healthz}
+      collection: ${DOCUMIND_QDRANT_COLLECTION:documind-segments}
+      api-key: ${DOCUMIND_QDRANT_API_KEY:}
+      use-tls: ${DOCUMIND_QDRANT_USE_TLS:false}
+      timeout-seconds: ${DOCUMIND_QDRANT_TIMEOUT_SECONDS:5}
+      dimension: ${DOCUMIND_QDRANT_DIMENSION:384}
+      # 仅迁移时显式设置 true；会清空本项目专用 collection 并从原始文档重新生成向量。
+      rebuild-on-startup: ${DOCUMIND_QDRANT_REBUILD:false}
 
   # CORS 配置，生产环境必须改成真实域名。
   cors:

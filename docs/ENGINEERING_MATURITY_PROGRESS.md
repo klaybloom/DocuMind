@@ -100,4 +100,4 @@
 
 - **2026-06-24 阶段测试数**: 69
 - **2026-07-03 当前默认测试基线**: `mvn test` 通过 106 个测试
-- **额外验证**: `PostgresIntegrationIT` 通过本机 Docker PostgreSQL 或 CI service container 单独执行
+- **额外验证**: MySQL + Redis 集成测试通过本机 `documind_test` schema 或 CI service container 执行

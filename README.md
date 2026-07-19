@@ -19,7 +19,7 @@ graph TD
         C --> E["RagService<br/>RAG 核心逻辑"]
         D --> F["DocumentService<br/>文件存储 + Manifest"]
         E --> G["EmbeddingModel<br/>All-MiniLM-L6-V2"]
-        E --> H["InMemoryEmbeddingStore<br/>向量存储"]
+        E --> H["Qdrant<br/>向量存储"]
         E --> I["ChatModel<br/>DeepSeek API"]
         E --> F
     end
@@ -32,8 +32,8 @@ graph TD
 **组件说明**：
 - **前端**：原生 HTML5/JS/CSS 单页应用，通过 SSE 实现流式回答展示
 - **RagService**：混合检索（向量相似度 + 关键词匹配）、会话记忆、分块策略
-- **InMemoryEmbeddingStore**：进程内向量库，定期序列化到 `.documind-vectors.json`
-- **DocumentService**：文件系统存储 + JPA 元数据管理，默认 H2，PostgreSQL profile 支持 Flyway 迁移验证
+- **Qdrant**：通过 gRPC 保存 embedding 与片段元数据，支持跨进程持久化检索
+- **DocumentService**：文件系统存储 + JPA 元数据管理，MySQL 由 Flyway 管理；Redis 保存热会话、限流和幂等状态
 
 ## 🔄 RAG 工作流程
 
@@ -109,7 +109,7 @@ sequenceDiagram
 - **嵌入模型**: All-MiniLM-L6-V2 (本地运行)
 - **大语言模型**: DeepSeek API (兼容 OpenAI 格式)
 - **前端**: 原生 HTML5, Vanilla JS, CSS3 (针对现代浏览器优化)
-- **数据库**: H2（默认本地/单实例）+ PostgreSQL profile（Flyway schema 迁移验证）
+- **数据库**: MySQL 8.4（Flyway schema migration）+ Redis 7.4（会话热缓存、限流、幂等）+ Qdrant（文档向量）
 
 ## 🚀 快速启动
 
@@ -117,6 +117,7 @@ sequenceDiagram
 
 - JDK 17+
 - Maven 3.8+
+- MySQL 8.4、Redis 7.4 和 Qdrant 1.18（Qdrant HTTP `6333`、gRPC `6334`）
 - [DeepSeek API Key](https://platform.deepseek.com/)
 
 ### 启动步骤
@@ -222,29 +223,28 @@ DocuMind/
 │   ├── dto/                 # 请求/响应 DTO
 │   └── exception/           # 全局异常处理
 ├── src/main/resources/
-│   ├── db/migration/        # PostgreSQL Flyway migration
+│   ├── db/migration/mysql/  # MySQL Flyway migration
 │   ├── prompts/             # RAG prompt 模板
 │   ├── static/              # 前端 (index.html, admin.html, JS/CSS)
 │   ├── application.yml      # 公共配置
-│   ├── application-dev.yml.template # 本地 H2 开发 profile 模板
-│   ├── application-prod.yml # H2 单实例生产 profile
-│   └── application-postgres.yml # PostgreSQL/Flyway 验证 profile
+│   ├── application-mysql.yml # MySQL + Redis 运行 profile
+│   └── application-mysql.yml.template # 本机连接模板
 ├── docs/                    # 部署、RAG 评测、工程成熟度和简历说明
-├── docker-compose.postgres.yml
 ├── documents/               # 本地上传文档和索引文件目录
 └── pom.xml                  # Maven 依赖
 ```
 
-真实的 `application-dev.yml` / `application-local.yml` 是本机私有配置，已被 Git、Docker build context 和 Maven resources 排除，不会进入发布 JAR。
+真实的 `application-local.yml` 是本机私有配置，已被 Git、Docker build context 和 Maven resources 排除，不会进入发布 JAR。
 
 ## 知识库和索引
 
 - 默认知识库使用 `documents/` 根目录，新增知识库使用 `documents/<知识库名>/` 子目录。
-- 文档元数据、索引状态、知识缺口和审计记录默认保存在 H2 中；PostgreSQL profile 使用 Flyway 管理关系型 schema。
+- 文档元数据、索引状态、知识缺口、审计、会话和长期记忆保存在 MySQL 中；Flyway 管理关系型 schema。
 - 旧版本的 `.documind-files.json`、`.documind-gaps.json` 和 `.documind-audit.log` 会在启动时迁移。
 - 文档过期提示按 `DOCUMIND_STALE_DAYS` 判断；默认 180 天。
-- 向量库运行时仍使用内存实现，同时会持久化到 `.documind-vectors.json`；服务重启后优先加载快照，并按文件变化增量刷新。
-- 运行过程中刷新索引会复用已成功索引且未变化文件的解析和嵌入结果，只处理新增或更新文件。
+- Qdrant 运行在 `127.0.0.1:6333/6334` 时使用 HTTP 健康检查和 gRPC 检索；Qdrant 不可用时应用不会启动。
+- 首次创建 collection 会从原始文档构建索引；上传、单文件重索引和删除只同步目标文档的向量。
+- 需要从旧本地索引完整迁移时，设置 `DOCUMIND_QDRANT_REBUILD=true`，它只会清空 `DOCUMIND_QDRANT_COLLECTION` 后重新生成向量。
 - RAG 检索参数可通过 `DOCUMIND_RAG_MAX_RESULTS`、`DOCUMIND_RAG_MIN_SCORE`、`DOCUMIND_RAG_KEYWORD_MIN_HIT_RATIO`、`DOCUMIND_RAG_RETRIEVAL_POOL_SIZE`、`DOCUMIND_RAG_CHUNK_SIZE`、`DOCUMIND_RAG_CHUNK_OVERLAP` 调整。
 - 真实答案质量建议按 [RAG_EVALUATION.md](./docs/RAG_EVALUATION.md) 的问题集定期检查，当前评测说明见 [RAG_EVALUATION_REPORT.md](./docs/RAG_EVALUATION_REPORT.md)。
 - 服务器部署、CloudBase Run 容器部署准备、备份、健康检查和升级流程见 [DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
@@ -264,15 +264,17 @@ mvn test
 npm run test:frontend
 ```
 
-PostgreSQL/Flyway 集成验证需先启动本机 Docker PostgreSQL：
+MySQL + Redis 集成验证使用独立测试 schema：
 
 ```bash
-docker compose -f docker-compose.postgres.yml up -d
-SPRING_PROFILES_ACTIVE=postgres mvn -B -Dtest=PostgresIntegrationIT test
-docker compose -f docker-compose.postgres.yml down -v
+export DOCUMIND_MYSQL_TEST_URL='jdbc:mysql://127.0.0.1:3306/documind_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
+export DOCUMIND_MYSQL_TEST_USERNAME=<mysql-user>
+export DOCUMIND_MYSQL_TEST_PASSWORD=<mysql-password>
+export DOCUMIND_REDIS_PASSWORD=<redis-password-if-configured>
+mvn -B test
 ```
 
-PostgreSQL 测试会验证 Flyway 从空库初始化 schema，并覆盖账号、文档元数据、知识缺口、审计和知识库权限路径。
+测试会验证 MySQL Flyway schema、Redis 会话缓存、账号、文档元数据、知识缺口、审计和知识库权限路径。
 
 ## HTTP 接口
 
@@ -356,12 +358,20 @@ PostgreSQL 测试会验证 Flyway 从空库初始化 schema，并覆盖账号、
 | `DEEPSEEK_TIMEOUT_SECONDS` | `60` | API 调用超时（秒） |
 | `DOCUMIND_MAX_FILE_SIZE` | `50MB` | 单文件大小上限 |
 | `DOCUMIND_STALE_DAYS` | `180` | 文档过期天数阈值 |
-| `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
-| `DOCUMIND_DB_URL` | - | PostgreSQL profile JDBC URL，启用 `postgres` profile 时必填 |
-| `DOCUMIND_DB_USERNAME` | `sa` / `documind` | H2 或 PostgreSQL 数据库用户名 |
-| `DOCUMIND_DB_PASSWORD` | - | H2 或 PostgreSQL 数据库密码，启用 `postgres` profile 时必填 |
-| `DOCUMIND_JPA_DDL_AUTO` | `update` | H2 表结构处理方式，生产环境可改为 `validate` |
-| `SPRING_PROFILES_ACTIVE` | `dev` | 运行 profile，生产环境设置为 `prod` |
+| `DOCUMIND_MYSQL_URL` | `jdbc:mysql://127.0.0.1:3306/documind...` | MySQL JDBC URL |
+| `DOCUMIND_MYSQL_USERNAME` | `documind` | MySQL 应用账号 |
+| `DOCUMIND_MYSQL_PASSWORD` | - | MySQL 应用账号密码 |
+| `DOCUMIND_REDIS_HOST` | `127.0.0.1` | Redis 主机 |
+| `DOCUMIND_REDIS_PORT` | `6379` | Redis 端口 |
+| `DOCUMIND_REDIS_PASSWORD` | - | Redis 密码；未启用认证时留空 |
+| `DOCUMIND_QDRANT_HOST` | `127.0.0.1` | Qdrant gRPC 主机 |
+| `DOCUMIND_QDRANT_GRPC_PORT` | `6334` | Qdrant gRPC 端口 |
+| `DOCUMIND_QDRANT_HEALTH_URL` | `http://127.0.0.1:6333/healthz` | Qdrant HTTP 健康检查地址 |
+| `DOCUMIND_QDRANT_COLLECTION` | `documind-segments` | 本项目使用的 Qdrant collection |
+| `DOCUMIND_QDRANT_API_KEY` | - | Qdrant API Key；未启用认证时留空 |
+| `DOCUMIND_QDRANT_USE_TLS` | `false` | Qdrant gRPC 是否启用 TLS |
+| `DOCUMIND_QDRANT_REBUILD` | `false` | 启动时清空本项目 collection 并从原始文档重建 |
+| `SPRING_PROFILES_ACTIVE` | `mysql` | 唯一运行 profile |
 | `PORT` | `8080` | HTTP 监听端口，CloudBase Run 等容器平台可注入 |
 | `DOCUMIND_RAG_MAX_RESULTS` | `3` | 检索返回的最大片段数 |
 | `DOCUMIND_RAG_MIN_SCORE` | `0.65` | 向量检索最低相似度阈值 |

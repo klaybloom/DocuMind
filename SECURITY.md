@@ -39,7 +39,7 @@ app:
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-**注意**：`application-local.yml` 和 `application-dev.yml` 已添加到 `.gitignore`，不会被提交到 Git。发布构建还必须通过 Maven resources 和 `.dockerignore` 排除这两个文件；打包后可用 `jar tf target/documind-*.jar | rg "(^|/)application-(dev|local)\\.yml$"` 检查，命中即表示构建产物不合格。
+**注意**：`application-local.yml` 已添加到 `.gitignore`，不会被提交到 Git。发布构建还必须通过 Maven resources 和 `.dockerignore` 排除该文件；打包后可用 `jar tf target/documind-*.jar | rg "(^|/)application-local\\.yml$"` 检查，命中即表示构建产物不合格。
 
 ### 方法 3：使用 Spring Boot 启动参数
 

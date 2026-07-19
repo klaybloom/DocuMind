@@ -1,14 +1,20 @@
 package com.documind;
 
 import com.documind.dto.DocumentFileInfo;
+import com.documind.config.QdrantConfig.QdrantCollectionState;
 import com.documind.repository.AuditEventRepository;
 import com.documind.repository.DocumentFileRepository;
 import com.documind.repository.KnowledgeGapRepository;
 import com.documind.repository.UserAccountRepository;
 import com.documind.service.DocumentService;
+import com.documind.service.ChatHistoryService;
+import com.documind.service.ChatSessionStore;
 import com.documind.service.RagService;
 import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -16,6 +22,9 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
+import dev.langchain4j.store.embedding.qdrant.QdrantEmbeddingStore;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,6 +69,12 @@ class IntegrationTest {
     RagService ragService;
 
     @Autowired
+    ChatHistoryService chatHistoryService;
+
+    @Autowired
+    ChatSessionStore chatSessionStore;
+
+    @Autowired
     DocumentFileRepository fileRepository;
 
     @Autowired
@@ -73,6 +89,17 @@ class IntegrationTest {
     @Autowired
     MockMvc mockMvc;
 
+    @Autowired
+    EmbeddingStore<TextSegment> embeddingStore;
+
+    @Autowired
+    QdrantCollectionState qdrantCollectionState;
+
+    @BeforeEach
+    void clearQdrantCollection() {
+        embeddingStore.removeAll();
+    }
+
     @Test
     void contextLoads() {
         // Verify all key beans are wired
@@ -82,6 +109,8 @@ class IntegrationTest {
         assertThat(gapRepository).isNotNull();
         assertThat(auditRepository).isNotNull();
         assertThat(userAccountRepository).isNotNull();
+        assertThat(embeddingStore).isInstanceOf(QdrantEmbeddingStore.class);
+        assertThat(qdrantCollectionState.collection()).isEqualTo("documind-test-segments");
     }
 
     @Test
@@ -145,9 +174,9 @@ class IntegrationTest {
     void ragServiceAskWithMockedLlm() {
         // Setup mock embedding model
         when(embeddingModel.embed(any(String.class)))
-                .thenAnswer(inv -> Response.from(Embedding.from(new float[]{1.0f, 0.0f, 0.0f})));
+                .thenAnswer(inv -> Response.from(Embedding.from(vector())));
         when(embeddingModel.embed(any(TextSegment.class)))
-                .thenAnswer(inv -> Response.from(Embedding.from(new float[]{1.0f, 0.0f, 0.0f})));
+                .thenAnswer(inv -> Response.from(Embedding.from(vector())));
 
         // Setup mock chat model
         when(chatModel.chat(any(java.util.List.class)))
@@ -159,6 +188,68 @@ class IntegrationTest {
 
         assertThat(answer).isNotNull();
         assertThat(answer.getAnswer()).contains("测试回答");
+    }
+
+    @Test
+    void qdrantStoresVectorsAndRemovesOnlyTheSelectedDocument() {
+        TextSegment first = qdrantSegment("HR/hr.txt#1", "HR/hr.txt", "考勤制度要求九点前到岗。");
+        TextSegment second = qdrantSegment("Finance/finance.txt#1", "Finance/finance.txt", "报销制度要求提交发票。");
+        embeddingStore.addAll(
+                List.of("8d9245f2-a0e1-4cc0-a0cc-5fcb1c64b701", "8d9245f2-a0e1-4cc0-a0cc-5fcb1c64b702"),
+                List.of(Embedding.from(vector()), Embedding.from(vector())),
+                List.of(first, second));
+
+        assertThat(embeddingStore.search(EmbeddingSearchRequest.builder()
+                        .queryEmbedding(Embedding.from(vector()))
+                        .maxResults(10)
+                        .minScore(0.0)
+                        .build())
+                .matches()).hasSize(2);
+
+        embeddingStore.removeAll(metadataKey("document_key").isEqualTo("HR/hr.txt"));
+
+        assertThat(embeddingStore.search(EmbeddingSearchRequest.builder()
+                        .queryEmbedding(Embedding.from(vector()))
+                        .maxResults(10)
+                        .minScore(0.0)
+                        .build())
+                .matches())
+                .extracting(match -> match.embedded().metadata().getString("document_key"))
+                .containsExactly("Finance/finance.txt");
+    }
+
+    private TextSegment qdrantSegment(String chunkId, String documentKey, String text) {
+        Metadata metadata = new Metadata();
+        metadata.put("chunk_id", chunkId);
+        metadata.put("document_key", documentKey);
+        return TextSegment.from(text, metadata);
+    }
+
+    private float[] vector() {
+        float[] vector = new float[384];
+        vector[0] = 1.0f;
+        return vector;
+    }
+
+    @Test
+    void redisSessionWindowCanBeRebuiltFromMysqlHistory() {
+        String sessionId = "admin:history-" + java.util.UUID.randomUUID();
+        chatHistoryService.appendExchange(sessionId, "default", "第一轮问题", "第一轮回答");
+
+        var restored = chatHistoryService.latestMessages(sessionId, "default", 10);
+        assertThat(restored)
+                .hasSize(2)
+                .extracting(Object::getClass)
+                .containsExactly(UserMessage.class, AiMessage.class);
+
+        MessageWindowChatMemory memory = MessageWindowChatMemory.withMaxMessages(10);
+        memory.set(restored);
+        chatSessionStore.save("default", sessionId, memory);
+        assertThat(chatSessionStore.load("default", sessionId).messages()).hasSize(2);
+
+        assertThat(chatSessionStore.clear(sessionId)).isEqualTo(1);
+        assertThat(chatSessionStore.load("default", sessionId).messages()).isEmpty();
+        assertThat(chatHistoryService.latestMessages(sessionId, "default", 10)).hasSize(2);
     }
 
     @Test

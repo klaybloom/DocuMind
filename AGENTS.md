@@ -13,9 +13,8 @@ DocuMind 是一个基于 RAG 的智能文档问答助手。用户上传文档后
 - **RAG 框架**: LangChain4j 1.16.3，部分 parser / embedding 依赖为 1.16.3-beta26
 - **嵌入模型**: `AllMiniLmL6V2EmbeddingModel`，本地运行，无需外部 embedding 服务
 - **大语言模型**: DeepSeek API，走 OpenAI 兼容接口
-- **关系数据库**: H2 文件数据库 + Spring Data JPA
-- **向量存储**: `InMemoryEmbeddingStore`，通过 `.documind-vectors.json` 文件持久化
-- **索引缓存**: `.documind-index-cache.json`
+- **关系数据库**: MySQL + Spring Data JPA，Flyway 管理 schema
+- **向量存储**: Qdrant，通过 gRPC `6334` 读写；HTTP `6333/healthz` 用于启动检查
 - **前端**: 原生 HTML/CSS/JS，位于 `src/main/resources/static/`
 
 ## 构建与运行
@@ -30,7 +29,7 @@ DocuMind 是一个基于 RAG 的智能文档问答助手。用户上传文档后
    ```
 2. 必须配置 DeepSeek API Key，否则 LLM Bean 初始化会失败。
 3. 必须配置管理员密码，否则用户初始化会失败。
-4. 生产部署必须把数据库、文档和索引文件放在持久化目录。
+4. 生产部署必须为 MySQL、Redis、Qdrant 和原始文档配置持久化。
 
 ### 必填配置
 
@@ -74,7 +73,12 @@ mvn spring-boot:run
 | `DOCUMIND_USER_PASSWORD` | 无 | 普通用户密码 |
 | `DOCUMIND_USER_KNOWLEDGE_BASES` | `default` | 普通用户可访问知识库，`,` 分隔，`*` 表示全部 |
 | `DOCUMIND_MIN_PASSWORD_LENGTH` | `12` | 密码最小长度，代码内部最低接受 8 |
-| `DOCUMIND_DB_PATH` | `${user.dir}/documents/.documind-db` | H2 文件数据库路径 |
+| `DOCUMIND_MYSQL_URL` | `jdbc:mysql://127.0.0.1:3306/documind...` | MySQL JDBC URL |
+| `DOCUMIND_QDRANT_HOST` | `127.0.0.1` | Qdrant gRPC 主机 |
+| `DOCUMIND_QDRANT_GRPC_PORT` | `6334` | Qdrant gRPC 端口 |
+| `DOCUMIND_QDRANT_HEALTH_URL` | `http://127.0.0.1:6333/healthz` | Qdrant HTTP 健康检查地址 |
+| `DOCUMIND_QDRANT_COLLECTION` | `documind-segments` | 项目专用 Qdrant collection |
+| `DOCUMIND_QDRANT_REBUILD` | `false` | 启动时清空项目 collection 并从原始文档重建 |
 | `DOCUMIND_MAX_FILE_SIZE` | `50MB` | 上传大小上限 |
 | `ALLOWED_ORIGINS` | `http://localhost:8080` | CORS 来源 |
 | `DOCUMIND_CHAT_RATE_LIMIT_PER_MINUTE` | `30` | 每账号每分钟问答次数，`0` 表示关闭 |
@@ -107,9 +111,8 @@ dto/          请求、响应、健康检查、检索调试、来源引用等 DT
 
 ### 索引
 
-- `RagService.init()` 启动时尝试加载 `.documind-vectors.json` 和 `.documind-index-cache.json`。
-- `refreshIndex()` 会遍历数据库中的文档记录，按扩展名选择 parser，使用 `DocumentSplitters.recursive(chunkSize, chunkOverlap)` 切分。
-- 如果缓存可复用，会直接把缓存里的 segment 和 embedding 放回 `InMemoryEmbeddingStore`。
+- `RagService.init()` 先确认 Qdrant 健康和 collection；首次创建 collection 或 `DOCUMIND_QDRANT_REBUILD=true` 时从原始文档重建。
+- `refreshIndex()` 会遍历数据库中的文档记录，按扩展名选择 parser，使用 `DocumentSplitters.recursive(chunkSize, chunkOverlap)` 切分，并把新增或待索引文档写入 Qdrant。
 - 上传文件后会刷新索引；删除文件后会调用 `removeDocument()` 移除对应 chunk；单文件重新索引用 `reindexDocument()`。
 
 ### 问答
@@ -117,7 +120,7 @@ dto/          请求、响应、健康检查、检索调试、来源引用等 DT
 - `RagService.ask()` 和 `askStream()` 都按知识库检索。
 - 检索包括向量检索和关键词补充匹配。
 - 命中片段时使用文档问答 prompt；未命中时使用通用 prompt，并记录知识缺口。
-- 会话记忆使用 Caffeine cache，有最大数量和 TTL，单个会话使用 `MessageWindowChatMemory` 保存最近 10 条消息。
+- 活跃会话窗口由 Redis 保存，完整会话历史由 MySQL 保存；单个会话使用 `MessageWindowChatMemory` 保留最近 10 条消息。
 
 ### 用户与权限
 
@@ -204,12 +207,12 @@ dto/          请求、响应、健康检查、检索调试、来源引用等 DT
 - GitHub Actions Release：`.github/workflows/release.yml`
 - 部署手册：`docs/DEPLOYMENT.md`
 
-当前更适合单实例部署。H2 文件库、本地 `documents/`、本地向量索引文件和进程内限流都不适合多实例直接水平扩展。要做多实例，需要外置数据库、对象存储、分布式限流、分布式任务/锁，以及可共享的向量存储或重新设计索引流程。
+当前可使用 Qdrant 共享向量索引，但原始文档仍在本地文件系统；多实例部署前还需要对象存储、分布式任务/锁和上传一致性方案。
 
 ## 已知限制
 
-- H2 文件数据库适合内部小规模部署，不等同于企业生产数据库。
-- `InMemoryEmbeddingStore` 虽然已文件持久化，但运行时仍是进程内索引，大文档集启动和刷新成本需要压测。
+- MySQL、Redis 和 Qdrant 都需要独立持久化与备份策略。
+- Qdrant collection 的容量、召回质量和重建耗时仍需要基于真实文档集压测。
 - `AllMiniLmL6V2EmbeddingModel` 对中文语义检索不是最佳选择，中文知识库需要用评测集验证召回质量。
 - Office 文档解析依赖 POI，纯数字 Excel 或复杂格式文档的抽取质量有限。
 - 前端入口已改为 ES Module，`app.js` 已接入 `api.js` 和 `utils.js`；目前仍是原生静态前端，尚未引入 Vite/Webpack 这类打包器。

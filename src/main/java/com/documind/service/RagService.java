@@ -5,10 +5,7 @@ import com.documind.dto.DocumentFileInfo;
 import com.documind.dto.RetrievalDebugInfo;
 import com.documind.dto.SourceReference;
 import com.documind.exception.InvalidFileException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import com.documind.config.QdrantConfig.QdrantCollectionState;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.Metadata;
@@ -32,16 +29,16 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
-import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
+import io.qdrant.client.QdrantClient;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -52,17 +49,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
+
 /**
- * RAG 核心服务，负责文档解析、切分、embedding、检索、问答和索引持久化。
+ * RAG 核心服务，负责文档解析、切分、embedding、检索、问答和 Qdrant 索引同步。
  */
 @Service
 public class RagService {
 
     private static final Logger logger = LoggerFactory.getLogger(RagService.class);
-    private static final ObjectMapper CACHE_MAPPER = new ObjectMapper();
     private static final int DEFAULT_MAX_RESULTS = 3;
     private static final double DEFAULT_MIN_SCORE = 0.65;
     private static final double DEFAULT_MIN_KEYWORD_HIT_RATIO = 0.25;
@@ -71,20 +71,15 @@ public class RagService {
     private static final int DEFAULT_CHUNK_OVERLAP = 50;
     private static final String CHUNK_ID = "chunk_id";
     private static final String KNOWLEDGE_BASE = "knowledge_base";
+    private static final String DOCUMENT_KEY = "document_key";
     private static final String PAGE = "page";
-    private static final String STORE_FILE = ".documind-vectors.json";
-    private static final String CACHE_FILE = ".documind-index-cache.json";
-    private static final int DEFAULT_MAX_SESSIONS = 1000;
-    private static final long DEFAULT_SESSION_TTL_MINUTES = 60;
+    private static final int DEFAULT_SESSION_MAX_MESSAGES = 10;
 
     private final ChatModel chatModel;
     private final StreamingChatModel streamingChatModel;
     private final EmbeddingModel embeddingModel;
     private final DocumentService documentService;
     private final PromptTemplateService promptTemplateService;
-
-    @Value("${app.documents-path}")
-    private String documentsPath;
 
     @Value("${app.rag.max-results:" + DEFAULT_MAX_RESULTS + "}")
     private int maxResults = DEFAULT_MAX_RESULTS;
@@ -104,20 +99,26 @@ public class RagService {
     @Value("${app.rag.chunk-overlap:" + DEFAULT_CHUNK_OVERLAP + "}")
     private int chunkOverlap = DEFAULT_CHUNK_OVERLAP;
 
-    @Value("${app.chat.session.max:" + DEFAULT_MAX_SESSIONS + "}")
-    private int maxSessions = DEFAULT_MAX_SESSIONS;
+    @Value("${app.chat.session.max-messages:" + DEFAULT_SESSION_MAX_MESSAGES + "}")
+    private int sessionMaxMessages = DEFAULT_SESSION_MAX_MESSAGES;
 
-    @Value("${app.chat.session.ttl-minutes:" + DEFAULT_SESSION_TTL_MINUTES + "}")
-    private long sessionTtlMinutes = DEFAULT_SESSION_TTL_MINUTES;
+    @Value("${app.vector-store.qdrant.rebuild-on-startup:false}")
+    private boolean rebuildQdrantOnStartup;
+
+    @Value("${app.vector-store.qdrant.timeout-seconds:5}")
+    private long qdrantTimeoutSeconds = 5;
 
     private EmbeddingStore<TextSegment> embeddingStore;
     private volatile List<TextSegment> indexedSegments = Collections.emptyList();
     private volatile Map<String, IndexedDocument> indexedDocumentCache = Collections.emptyMap();
     private boolean indexReady;
-    private boolean storeLoadedFromDisk;
+    private boolean rebuildCollectionOnNextRefresh;
+    private QdrantCollectionState qdrantCollectionState;
+    private QdrantClient qdrantClient;
 
-    private Cache<String, MessageWindowChatMemory> sessionMemories = buildSessionCache(
-            DEFAULT_MAX_SESSIONS, DEFAULT_SESSION_TTL_MINUTES);
+    // 非 Spring 单元测试使用本地存储；正式运行由 RedisChatSessionStore 注入。
+    private ChatSessionStore sessionStore = new LocalChatSessionStore();
+    private ChatHistoryService chatHistoryService;
 
     public RagService(ChatModel chatModel,
                       StreamingChatModel streamingChatModel,
@@ -133,16 +134,32 @@ public class RagService {
         this.promptTemplateService = promptTemplateService;
     }
 
+    @Autowired
+    void setSessionStore(ChatSessionStore sessionStore) {
+        this.sessionStore = sessionStore;
+    }
+
+    @Autowired
+    void setChatHistoryService(ChatHistoryService chatHistoryService) {
+        this.chatHistoryService = chatHistoryService;
+    }
+
+    @Autowired
+    void setQdrantCollectionState(QdrantCollectionState qdrantCollectionState) {
+        this.qdrantCollectionState = qdrantCollectionState;
+    }
+
+    @Autowired
+    void setQdrantClient(QdrantClient qdrantClient) {
+        this.qdrantClient = qdrantClient;
+    }
+
     @PostConstruct
     public void init() {
         logger.info("Initializing RAG Service");
-        this.sessionMemories = buildSessionCache(
-                Math.max(100, maxSessions), Math.max(5, sessionTtlMinutes));
-        boolean loaded = tryLoadStoreFromFile();
-        if (loaded) {
-            logger.info("Loaded persisted vector store, running incremental refresh");
-        } else {
-            logger.info("No persisted vector store found, running full index build");
+        if (rebuildQdrantOnStartup || (qdrantCollectionState != null && qdrantCollectionState.created())) {
+            logger.info("Rebuilding Qdrant collection from original documents");
+            rebuildCollectionOnNextRefresh = true;
         }
         refreshIndex();
     }
@@ -150,14 +167,23 @@ public class RagService {
     public synchronized void refreshIndex() {
         try {
             logger.info("Starting index refresh");
-            this.embeddingStore = new InMemoryEmbeddingStore<>();
-            this.storeLoadedFromDisk = false;
+            boolean fullRebuild = rebuildCollectionOnNextRefresh;
+            rebuildCollectionOnNextRefresh = false;
+            if (fullRebuild) {
+                embeddingStore.removeAll();
+                indexedDocumentCache = Collections.emptyMap();
+            }
             List<TextSegment> refreshedSegments = new ArrayList<>();
             Map<String, IndexedDocument> refreshedCache = new LinkedHashMap<>();
             Map<String, IndexedDocument> previousCache = indexedDocumentCache;
 
             List<DocumentFileInfo> files = documentService.listDocumentFiles();
             logger.info("Found {} files to index", files.size());
+            if (!fullRebuild && qdrantPointCountIsMissing(files)) {
+                logger.warn("Qdrant point count is lower than indexed document metadata; rebuilding collection");
+                embeddingStore.removeAll();
+                fullRebuild = true;
+            }
 
             DocumentSplitter splitter = DocumentSplitters.recursive(validChunkSize(), validChunkOverlap());
             for (DocumentFileInfo fileInfo : files) {
@@ -165,18 +191,7 @@ public class RagService {
                 String fingerprint = fingerprint(fileInfo);
                 IndexedDocument cachedDocument = previousCache.get(documentKey);
 
-                if (hasReusableIndex(cachedDocument)
-                        && cachedDocument.fingerprint().equals(fingerprint)
-                        && DocumentService.STATUS_INDEXED.equals(fileInfo.getIndexStatus())) {
-                    embeddingStore.addAll(cachedDocument.embeddings(), cachedDocument.segments());
-                    refreshedSegments.addAll(cachedDocument.segments());
-                    refreshedCache.put(documentKey, cachedDocument);
-                    logger.info("Reused cached index for file: {}/{}", fileInfo.getKnowledgeBase(), fileInfo.getFileName());
-                    continue;
-                }
-
                 try {
-                    documentService.markIndexing(fileInfo);
                     Document document = loadDocument(fileInfo);
                     document.metadata().put(Document.FILE_NAME, fileInfo.getFileName());
                     document.metadata().put(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
@@ -188,12 +203,18 @@ public class RagService {
                         continue;
                     }
 
-                    List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
-                    embeddingStore.addAll(embeddings, segments);
+                    boolean unchangedInCurrentProcess = cachedDocument != null
+                            && cachedDocument.fingerprint().equals(fingerprint)
+                            && DocumentService.STATUS_INDEXED.equals(fileInfo.getIndexStatus());
+                    boolean indexedInQdrant = DocumentService.STATUS_INDEXED.equals(fileInfo.getIndexStatus());
+                    if (fullRebuild || (!unchangedInCurrentProcess && !indexedInQdrant)) {
+                        documentService.markIndexing(fileInfo);
+                        replaceDocumentVectors(documentKey, segments);
+                        documentService.markIndexed(fileInfo, segments.size());
+                        logger.info("Indexed document in Qdrant: {}/{}, chunks: {}", fileInfo.getKnowledgeBase(), fileInfo.getFileName(), segments.size());
+                    }
                     refreshedSegments.addAll(segments);
-                    refreshedCache.put(documentKey, new IndexedDocument(fingerprint, segments, embeddings));
-                    documentService.markIndexed(fileInfo, segments.size());
-                    logger.info("Successfully indexed file: {}/{}, chunks: {}", fileInfo.getKnowledgeBase(), fileInfo.getFileName(), segments.size());
+                    refreshedCache.put(documentKey, new IndexedDocument(fingerprint, segments));
                 } catch (Exception e) {
                     documentService.markIndexFailed(fileInfo, e.getMessage());
                     logger.error("Failed to index file: {}/{}", fileInfo.getKnowledgeBase(), fileInfo.getFileName(), e);
@@ -203,7 +224,6 @@ public class RagService {
             indexedSegments = Collections.unmodifiableList(refreshedSegments);
             indexedDocumentCache = Collections.unmodifiableMap(refreshedCache);
             indexReady = true;
-            saveStoreToFile();
             logger.info("Index refresh completed successfully");
         } catch (Exception e) {
             logger.error("Error during index refresh", e);
@@ -217,7 +237,6 @@ public class RagService {
     public synchronized void reindexDocument(String filename, String knowledgeBase) {
         String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
         String sanitizedFilename = java.nio.file.Paths.get(filename).getFileName().toString();
-        String chunkPrefix = kb + "/" + sanitizedFilename + "#";
 
         // 先确认文件仍存在于目标知识库。
         DocumentFileInfo fileInfo = documentService.listDocumentFiles(kb).stream()
@@ -240,27 +259,24 @@ public class RagService {
                 throw new RuntimeException("未提取到可索引文本");
             }
 
-            List<Embedding> newEmbeddings = embeddingModel.embedAll(newSegments).content();
-
-            // 移除该文件的旧片段，再加入新片段。
+            // 移除该文件的旧向量，再加入新向量，不影响其他文档。
             List<TextSegment> remainingSegments = indexedSegments.stream()
-                    .filter(s -> !firstNonBlank(s.metadata().getString(CHUNK_ID), "").startsWith(chunkPrefix))
+                    .filter(s -> !documentKey(fileInfo).equals(s.metadata().getString(DOCUMENT_KEY)))
                     .toList();
 
+            replaceDocumentVectors(documentKey(fileInfo), newSegments);
             List<TextSegment> allSegments = new ArrayList<>(remainingSegments);
             allSegments.addAll(newSegments);
-
-            rebuildStoreFromSegments(allSegments);
+            indexedSegments = Collections.unmodifiableList(allSegments);
 
             // 更新单文件索引缓存，避免下次全量刷新重复解析。
             String documentKey = documentKey(fileInfo);
             String fingerprint = fingerprint(fileInfo);
             Map<String, IndexedDocument> newCache = new LinkedHashMap<>(indexedDocumentCache);
-            newCache.put(documentKey, new IndexedDocument(fingerprint, newSegments, newEmbeddings));
+            newCache.put(documentKey, new IndexedDocument(fingerprint, newSegments));
             indexedDocumentCache = Collections.unmodifiableMap(newCache);
 
             documentService.markIndexed(fileInfo, newSegments.size());
-            saveStoreToFile();
             logger.info("Reindexed document: {}/{}, chunks: {}", kb, sanitizedFilename, newSegments.size());
         } catch (Exception e) {
             documentService.markIndexFailed(fileInfo, e.getMessage());
@@ -275,35 +291,21 @@ public class RagService {
     public synchronized void removeDocument(String filename, String knowledgeBase) {
         String kb = documentService.normalizeKnowledgeBase(knowledgeBase);
         String sanitizedFilename = java.nio.file.Paths.get(filename).getFileName().toString();
-        String chunkPrefix = kb + "/" + sanitizedFilename + "#";
+        String documentKey = kb + "/" + sanitizedFilename;
 
         List<TextSegment> remainingSegments = indexedSegments.stream()
-                .filter(s -> !firstNonBlank(s.metadata().getString(CHUNK_ID), "").startsWith(chunkPrefix))
+                .filter(s -> !documentKey.equals(s.metadata().getString(DOCUMENT_KEY)))
                 .toList();
 
-        rebuildStoreFromSegments(remainingSegments);
+        removeDocumentVectors(documentKey);
+        indexedSegments = Collections.unmodifiableList(new ArrayList<>(remainingSegments));
 
         // 同步移除单文件索引缓存。
         Map<String, IndexedDocument> newCache = new LinkedHashMap<>(indexedDocumentCache);
         newCache.entrySet().removeIf(e -> e.getKey().equals(kb + "/" + sanitizedFilename));
         indexedDocumentCache = Collections.unmodifiableMap(newCache);
 
-        saveStoreToFile();
         logger.info("Removed document from index: {}/{}, remaining chunks: {}", kb, sanitizedFilename, remainingSegments.size());
-    }
-
-    /**
-     * 根据给定片段重建内存向量索引。
-     */
-    private void rebuildStoreFromSegments(List<TextSegment> segments) {
-        this.embeddingStore = new InMemoryEmbeddingStore<>();
-        if (!segments.isEmpty()) {
-            // TextSegment 自身不带 embedding，需要重新生成向量。
-            List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
-            embeddingStore.addAll(embeddings, segments);
-        }
-        indexedSegments = Collections.unmodifiableList(new ArrayList<>(segments));
-        indexReady = true;
     }
 
     public RagAnswer ask(String question) {
@@ -337,8 +339,7 @@ public class RagService {
             List<ChatMessage> messages = buildMessages(memory, question, sources);
             String response = chatModel.chat(messages).aiMessage().text();
 
-            memory.add(UserMessage.from(question));
-            memory.add(AiMessage.from(response));
+            rememberExchange(memory, sessionId, kb, question, response);
 
             String answer = sources.isEmpty() ? response + formatOwnerSuggestion(selectedKnowledgeBases) : response + formatSources(sources);
             RagAnswer ragAnswer = new RagAnswer(answer, sources, !sources.isEmpty());
@@ -407,7 +408,7 @@ public class RagService {
                 @Override
                 public void onCompleteResponse(ChatResponse response) {
                     if (generated.length() == 0) {
-                        handleEmptyStreamingResponse(question, selectedKnowledgeBases, sources, result.debugInfo(),
+                        handleEmptyStreamingResponse(question, sessionId, selectedKnowledgeBases, sources, result.debugInfo(),
                                 messages, memory, onNext, onSources, onDebug, onComplete, onError);
                         return;
                     }
@@ -419,14 +420,13 @@ public class RagService {
                     if (onDebug != null && result.debugInfo() != null) {
                         onDebug.accept(result.debugInfo());
                     }
-                    memory.add(UserMessage.from(question));
-                    memory.add(AiMessage.from(generated.toString()));
+                    rememberExchange(memory, sessionId, kb, question, generated.toString());
                     onComplete.run();
                 }
 
                 @Override
                 public void onError(Throwable error) {
-                    handleStreamingError(error, question, selectedKnowledgeBases, sources, result.debugInfo(),
+                    handleStreamingError(error, sessionId, question, selectedKnowledgeBases, sources, result.debugInfo(),
                             messages, memory, generated, onNext, onSources, onDebug, onComplete, onError);
                 }
             });
@@ -464,9 +464,50 @@ public class RagService {
             metadata.put(Document.FILE_NAME, fileInfo.getFileName());
             metadata.put(KNOWLEDGE_BASE, fileInfo.getKnowledgeBase());
             metadata.put(CHUNK_ID, fileInfo.getKnowledgeBase() + "/" + fileInfo.getFileName() + "#" + (i + 1));
+            metadata.put(DOCUMENT_KEY, documentKey(fileInfo));
             enriched.add(TextSegment.from(segment.text(), metadata));
         }
         return enriched;
+    }
+
+    private void replaceDocumentVectors(String documentKey, List<TextSegment> segments) {
+        removeDocumentVectors(documentKey);
+        if (segments.isEmpty()) {
+            return;
+        }
+        List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
+        embeddingStore.addAll(stablePointIds(segments), embeddings, segments);
+    }
+
+    private void removeDocumentVectors(String documentKey) {
+        embeddingStore.removeAll(metadataKey(DOCUMENT_KEY).isEqualTo(documentKey));
+    }
+
+    private List<String> stablePointIds(List<TextSegment> segments) {
+        return segments.stream()
+                .map(segment -> firstNonBlank(segment.metadata().getString(CHUNK_ID), segment.text()))
+                .map(value -> UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8)).toString())
+                .toList();
+    }
+
+    private boolean qdrantPointCountIsMissing(List<DocumentFileInfo> files) {
+        if (qdrantClient == null || qdrantCollectionState == null) {
+            return false;
+        }
+        long expected = files.stream()
+                .filter(file -> DocumentService.STATUS_INDEXED.equals(file.getIndexStatus()))
+                .mapToLong(file -> Math.max(0, file.getChunkCount()))
+                .sum();
+        if (expected == 0) {
+            return false;
+        }
+        try {
+            long actual = qdrantClient.countAsync(qdrantCollectionState.collection())
+                    .get(Math.max(1, qdrantTimeoutSeconds), TimeUnit.SECONDS);
+            return actual < expected;
+        } catch (Exception e) {
+            throw new IllegalStateException("无法读取 Qdrant collection 点位数量: " + qdrantCollectionState.collection(), e);
+        }
     }
 
     private record RetrievalResult(List<SourceReference> sources, RetrievalDebugInfo debugInfo) {}
@@ -631,6 +672,7 @@ public class RagService {
     }
 
     private void handleEmptyStreamingResponse(String question,
+                                              String sessionId,
                                               List<String> knowledgeBases,
                                               List<SourceReference> sources,
                                               RetrievalDebugInfo debugInfo,
@@ -652,8 +694,7 @@ public class RagService {
             }
             String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBases) : response;
             onNext.accept(answer);
-            memory.add(UserMessage.from(question));
-            memory.add(AiMessage.from(response));
+            rememberExchange(memory, sessionId, knowledgeBaseKey(knowledgeBases), question, response);
             onComplete.run();
         } catch (Exception fallbackError) {
             logger.error("Non-streaming response failed after empty stream", fallbackError);
@@ -662,6 +703,7 @@ public class RagService {
     }
 
     private void handleStreamingError(Throwable error,
+                                      String sessionId,
                                       String question,
                                       List<String> knowledgeBases,
                                       List<SourceReference> sources,
@@ -698,8 +740,7 @@ public class RagService {
             }
             String answer = sources.isEmpty() ? response + formatOwnerSuggestion(knowledgeBases) : response;
             onNext.accept(answer);
-            memory.add(UserMessage.from(question));
-            memory.add(AiMessage.from(response));
+            rememberExchange(memory, sessionId, knowledgeBaseKey(knowledgeBases), question, response);
             onComplete.run();
         } catch (Exception fallbackError) {
             logger.error("Non-streaming fallback also failed", fallbackError);
@@ -709,8 +750,15 @@ public class RagService {
 
     private MessageWindowChatMemory getOrCreateMemory(String sessionId, String knowledgeBase) {
         String id = isBlank(sessionId) ? "default" : sessionId;
-        return sessionMemories.get(knowledgeBase + ":" + id,
-                ignored -> MessageWindowChatMemory.withMaxMessages(10));
+        MessageWindowChatMemory memory = sessionStore.load(knowledgeBase, id);
+        if (memory.messages().isEmpty() && chatHistoryService != null) {
+            List<ChatMessage> persisted = chatHistoryService.latestMessages(id, knowledgeBase, sessionMaxMessages);
+            if (!persisted.isEmpty()) {
+                sessionStore.replace(knowledgeBase, id, persisted);
+                memory.set(persisted);
+            }
+        }
+        return memory;
     }
 
     private String contextualRetrievalQuestion(String question, MessageWindowChatMemory memory) {
@@ -749,23 +797,63 @@ public class RagService {
         if (isBlank(sessionId)) {
             return 0;
         }
-        String suffix = ":" + sessionId.trim();
-        List<String> toRemove = sessionMemories.asMap().keySet().stream()
-                .filter(key -> key.endsWith(suffix))
-                .toList();
-        toRemove.forEach(sessionMemories::invalidate);
-        return toRemove.size();
+        return sessionStore.clear(sessionId.trim());
     }
 
     int sessionMemoryCount() {
-        return (int) sessionMemories.estimatedSize();
+        return sessionStore.count();
     }
 
-    private Cache<String, MessageWindowChatMemory> buildSessionCache(int maxSize, long ttlMinutes) {
-        return Caffeine.newBuilder()
-                .maximumSize(maxSize)
-                .expireAfterAccess(ttlMinutes, TimeUnit.MINUTES)
-                .build();
+    private void rememberExchange(MessageWindowChatMemory memory,
+                                  String sessionId,
+                                  String knowledgeBase,
+                                  String question,
+                                  String response) {
+        memory.add(UserMessage.from(question));
+        memory.add(AiMessage.from(response));
+        String id = isBlank(sessionId) ? "default" : sessionId;
+        sessionStore.save(knowledgeBase, id, memory);
+        if (chatHistoryService != null) {
+            chatHistoryService.appendExchange(id, knowledgeBase, question, response);
+        }
+    }
+
+    private static final class LocalChatSessionStore implements ChatSessionStore {
+        private final Map<String, MessageWindowChatMemory> memories = new ConcurrentHashMap<>();
+
+        @Override
+        public MessageWindowChatMemory load(String knowledgeBase, String sessionId) {
+            return memories.computeIfAbsent(key(knowledgeBase, sessionId),
+                    ignored -> MessageWindowChatMemory.withMaxMessages(DEFAULT_SESSION_MAX_MESSAGES));
+        }
+
+        @Override
+        public void save(String knowledgeBase, String sessionId, MessageWindowChatMemory memory) {
+            memories.put(key(knowledgeBase, sessionId), memory);
+        }
+
+        @Override
+        public void replace(String knowledgeBase, String sessionId, List<ChatMessage> messages) {
+            MessageWindowChatMemory memory = MessageWindowChatMemory.withMaxMessages(DEFAULT_SESSION_MAX_MESSAGES);
+            memory.set(messages);
+            save(knowledgeBase, sessionId, memory);
+        }
+
+        @Override
+        public int clear(String sessionId) {
+            List<String> keys = memories.keySet().stream().filter(key -> key.endsWith("\u0000" + sessionId)).toList();
+            keys.forEach(memories::remove);
+            return keys.size();
+        }
+
+        @Override
+        public int count() {
+            return memories.size();
+        }
+
+        private String key(String knowledgeBase, String sessionId) {
+            return knowledgeBase + "\u0000" + sessionId;
+        }
     }
 
     private String documentKey(DocumentFileInfo fileInfo) {
@@ -930,107 +1018,9 @@ public class RagService {
         return value == null || value.trim().isEmpty();
     }
 
-    private boolean tryLoadStoreFromFile() {
-        try {
-            Path storePath = storeFilePath();
-            if (!Files.exists(storePath)) {
-                return false;
-            }
-            long sizeBytes = Files.size(storePath);
-            logger.info("Loading persisted vector store from {}, size={} bytes", storePath, sizeBytes);
-            InMemoryEmbeddingStore<TextSegment> loaded = InMemoryEmbeddingStore.fromFile(storePath);
-            this.embeddingStore = loaded;
-            this.storeLoadedFromDisk = true;
-            // 文件加载成功即可先标记可用，随后 refreshIndex() 会做增量更新。
-            this.indexReady = true;
-            logger.info("Persisted vector store loaded successfully");
-            // 同时加载文档 fingerprint 缓存，用于判断索引是否可复用。
-            loadCacheFromFile();
-            return true;
-        } catch (Exception e) {
-            logger.warn("Failed to load persisted vector store, will rebuild from documents: {}", e.getMessage());
-            this.storeLoadedFromDisk = false;
-            return false;
-        }
-    }
-
-    private boolean hasReusableIndex(IndexedDocument document) {
-        return document != null
-                && document.segments() != null
-                && document.embeddings() != null
-                && !document.segments().isEmpty()
-                && document.segments().size() == document.embeddings().size();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void loadCacheFromFile() {
-        try {
-            Path cachePath = cacheFilePath();
-            if (!Files.exists(cachePath)) {
-                logger.info("No index cache file found, will rebuild fingerprints");
-                return;
-            }
-            Map<String, CacheEntry> raw = CACHE_MAPPER.readValue(
-                    cachePath.toFile(),
-                    new TypeReference<Map<String, CacheEntry>>() {}
-            );
-            Map<String, IndexedDocument> restored = new LinkedHashMap<>();
-            for (Map.Entry<String, CacheEntry> entry : raw.entrySet()) {
-                CacheEntry ce = entry.getValue();
-                restored.put(entry.getKey(), new IndexedDocument(ce.fingerprint, List.of(), List.of()));
-            }
-            this.indexedDocumentCache = Collections.unmodifiableMap(restored);
-            logger.info("Index cache loaded: {} document entries", restored.size());
-        } catch (Exception e) {
-            logger.warn("Failed to load index cache, will rebuild fingerprints: {}", e.getMessage());
-        }
-    }
-
-    private void saveStoreToFile() {
-        try {
-            Path storePath = storeFilePath();
-            Files.createDirectories(storePath.getParent());
-            // 先写临时文件再原子替换，降低写入中断造成文件损坏的概率。
-            Path tempPath = storePath.resolveSibling(STORE_FILE + ".tmp");
-            if (embeddingStore instanceof InMemoryEmbeddingStore<TextSegment> inMemory) {
-                inMemory.serializeToFile(tempPath);
-                Files.move(tempPath, storePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-                logger.info("Vector store persisted to {}, size={} bytes", storePath, Files.size(storePath));
-            }
-            saveCacheToFile();
-        } catch (Exception e) {
-            logger.warn("Failed to persist vector store: {}", e.getMessage());
-        }
-    }
-
-    private void saveCacheToFile() {
-        try {
-            Path cachePath = cacheFilePath();
-            Map<String, CacheEntry> serializable = new LinkedHashMap<>();
-            for (Map.Entry<String, IndexedDocument> entry : indexedDocumentCache.entrySet()) {
-                serializable.put(entry.getKey(), new CacheEntry(entry.getValue().fingerprint()));
-            }
-            CACHE_MAPPER.writerWithDefaultPrettyPrinter().writeValue(cachePath.toFile(), serializable);
-            logger.debug("Index cache persisted: {} entries", serializable.size());
-        } catch (Exception e) {
-            logger.warn("Failed to persist index cache: {}", e.getMessage());
-        }
-    }
-
-    private Path storeFilePath() {
-        return Paths.get(documentsPath).resolve(STORE_FILE);
-    }
-
-    private Path cacheFilePath() {
-        return Paths.get(documentsPath).resolve(CACHE_FILE);
-    }
-
-    private record CacheEntry(String fingerprint) {}
-
     private record RetrievedCandidate(TextSegment segment, double score) {
     }
 
-    private record IndexedDocument(String fingerprint, List<TextSegment> segments, List<Embedding> embeddings) {
+    private record IndexedDocument(String fingerprint, List<TextSegment> segments) {
     }
 }

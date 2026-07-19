@@ -31,9 +31,8 @@ RUN mkdir -p /data/documents && chown -R documind:documind /data
 # Default environment variables (overridable at runtime)
 ENV JAVA_OPTS="-Xms256m -Xmx512m" \
     PORT=8080 \
-    SPRING_PROFILES_ACTIVE=prod \
+    SPRING_PROFILES_ACTIVE=mysql \
     DOCUMIND_ADMIN_USERNAME=admin \
-    DOCUMIND_DB_PATH=/data/documents/.documind-db \
     APP_DOCUMENTS_PATH=/data/documents
 
 EXPOSE 8080

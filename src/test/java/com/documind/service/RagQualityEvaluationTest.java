@@ -6,7 +6,6 @@ import com.documind.dto.RagAnswer;
 import com.documind.dto.SourceReference;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -93,9 +92,6 @@ class RagQualityEvaluationTest {
                 documentService,
                 promptTemplateService
         );
-        ReflectionTestUtils.setField(ragService, "documentsPath", tempDir.toString());
-        ReflectionTestUtils.setField(ragService, "sessionMemories",
-                Caffeine.newBuilder().maximumSize(100).build());
         return ragService;
     }
 

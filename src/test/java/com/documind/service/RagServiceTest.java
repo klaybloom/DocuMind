@@ -4,8 +4,6 @@ import com.documind.dto.DocumentFileInfo;
 import com.documind.dto.KnowledgeGapInfo;
 import com.documind.dto.RagAnswer;
 import com.documind.dto.RetrievalDebugInfo;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
@@ -19,13 +17,14 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -290,112 +289,71 @@ class RagServiceTest {
     }
 
     @Test
-    void saveAndLoadStoreFromFilePersistsEmbeddingsAcrossInstances() throws Exception {
-        InMemoryEmbeddingStore<TextSegment> store = new InMemoryEmbeddingStore<>();
-        TextSegment segment = TextSegment.from("报销流程需要正规发票。", metadata("HR/policy.txt#1"));
-        store.addAll(List.of(Embedding.from(new float[]{1.0f})), List.of(segment));
-
-        RecordingChatModel chatModel = new RecordingChatModel("基于文档回答。");
-        TestDocumentService documentService = new TestDocumentService();
-        RagService original = service(chatModel, noOpStreamingModel(), documentService, store);
-        ReflectionTestUtils.setField(original, "documentsPath", tempDir.toString());
-
-        // Trigger save
-        original.refreshIndex();
-
-        // Verify store file was created
-        Path storeFile = tempDir.resolve(".documind-vectors.json");
-        assertThat(storeFile).exists();
-        assertThat(Files.size(storeFile)).isGreaterThan(0);
-
-        // Verify cache file was created
-        Path cacheFile = tempDir.resolve(".documind-index-cache.json");
-        assertThat(cacheFile).exists();
-
-        // Create a new instance and verify it loads the persisted store
-        RagService restored = service(
-                new RecordingChatModel("恢复后的回答。"),
-                noOpStreamingModel(),
-                documentService,
-                new InMemoryEmbeddingStore<>()
-        );
-        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
-        boolean loaded = (boolean) ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
-        assertThat(loaded).isTrue();
-
-        // The restored store should be usable immediately
-        assertThat(restored.isIndexReady()).isTrue();
-    }
-
-    @Test
-    void refreshIndexRebuildsWhenPersistedCacheHasNoSegments() throws Exception {
+    void refreshIndexIndexesPendingDocumentsWithoutWritingLegacySnapshots() throws Exception {
         TestDocumentService documentService = new TestDocumentService(tempDir);
         documentService.addIndexedFile("HR", "a.txt", "员工手册要求九点到岗。");
-        writeFingerprintOnlyCache(documentService.files);
-        new InMemoryEmbeddingStore<TextSegment>().serializeToFile(tempDir.resolve(".documind-vectors.json"));
-
-        RagService restored = service(
+        InMemoryEmbeddingStore<TextSegment> store = new InMemoryEmbeddingStore<>();
+        RagService ragService = service(
                 new RecordingChatModel("基于文档回答。"),
                 noOpStreamingModel(),
                 documentService,
-                new InMemoryEmbeddingStore<>()
+                store
         );
-        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
-        boolean loaded = (boolean) ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
+        ragService.refreshIndex();
 
-        assertThat(loaded).isTrue();
-        restored.refreshIndex();
-
-        assertThat(restored.indexedSegmentCount()).isEqualTo(1);
+        assertThat(ragService.indexedSegmentCount()).isEqualTo(1);
         assertThat(documentService.files.get(0).getIndexStatus()).isEqualTo(DocumentService.STATUS_INDEXED);
         assertThat(documentService.files.get(0).getChunkCount()).isEqualTo(1);
+        assertThat(store.search(EmbeddingSearchRequest.builder()
+                        .queryEmbedding(Embedding.from(new float[]{1.0f}))
+                        .maxResults(10)
+                        .minScore(0.0)
+                        .build())
+                .matches()).hasSize(1);
+        assertThat(tempDir.resolve(".documind-vectors.json")).doesNotExist();
+        assertThat(tempDir.resolve(".documind-index-cache.json")).doesNotExist();
     }
 
     @Test
-    void removeDocumentAfterRestartKeepsOtherRebuiltSegments() throws Exception {
+    void reindexAndRemoveDocumentDoNotAffectOtherDocumentVectors() throws Exception {
         TestDocumentService documentService = new TestDocumentService(tempDir);
         documentService.addIndexedFile("HR", "a.txt", "A 文档包含考勤制度。");
         documentService.addIndexedFile("HR", "b.txt", "B 文档包含报销制度。");
-        writeFingerprintOnlyCache(documentService.files);
-        new InMemoryEmbeddingStore<TextSegment>().serializeToFile(tempDir.resolve(".documind-vectors.json"));
-
-        RagService restored = service(
+        InMemoryEmbeddingStore<TextSegment> store = new InMemoryEmbeddingStore<>();
+        RagService ragService = service(
                 new RecordingChatModel("基于文档回答。"),
                 noOpStreamingModel(),
                 documentService,
-                new InMemoryEmbeddingStore<>()
+                store
         );
-        ReflectionTestUtils.setField(restored, "documentsPath", tempDir.toString());
-        ReflectionTestUtils.invokeMethod(restored, "tryLoadStoreFromFile");
-        restored.refreshIndex();
+        ragService.reindexDocument("a.txt", "HR");
+        ragService.reindexDocument("b.txt", "HR");
 
-        assertThat(restored.indexedSegmentCount()).isEqualTo(2);
+        assertThat(ragService.indexedSegmentCount()).isEqualTo(2);
 
-        restored.removeDocument("a.txt", "HR");
+        ragService.removeDocument("a.txt", "HR");
 
-        assertThat(restored.indexedSegmentCount()).isEqualTo(1);
+        assertThat(ragService.indexedSegmentCount()).isEqualTo(1);
+        assertThat(store.search(EmbeddingSearchRequest.builder()
+                        .queryEmbedding(Embedding.from(new float[]{1.0f}))
+                        .maxResults(10)
+                        .minScore(0.0)
+                        .build())
+                .matches())
+                .extracting(match -> match.embedded().text())
+                .containsExactly("B 文档包含报销制度。");
     }
 
     @Test
-    void sessionMemoryIsBoundedByMaxSize() {
+    void sessionMemoryKeepsIndependentSessions() {
         RecordingChatModel chatModel = new RecordingChatModel("回答。");
         TestDocumentService documentService = new TestDocumentService();
         RagService ragService = service(chatModel, noOpStreamingModel(), documentService);
-        // Set a tiny cache for testing
-        Cache<String, dev.langchain4j.memory.chat.MessageWindowChatMemory> cache =
-                Caffeine.newBuilder().maximumSize(3).build();
-        ReflectionTestUtils.setField(ragService, "sessionMemories", cache);
 
         ragService.ask("问题1", "s1", "HR");
         ragService.ask("问题2", "s2", "HR");
         ragService.ask("问题3", "s3", "HR");
-        cache.cleanUp();
         assertThat(ragService.sessionMemoryCount()).isEqualTo(3);
-
-        // Adding a 4th session should evict the oldest
-        ragService.ask("问题4", "s4", "HR");
-        cache.cleanUp();
-        assertThat(ragService.sessionMemoryCount()).isLessThanOrEqualTo(3);
     }
 
     private RagService service(ChatModel chatModel,
@@ -423,8 +381,6 @@ class RagServiceTest {
                 promptTemplateService
         );
         ReflectionTestUtils.setField(ragService, "indexReady", true);
-        ReflectionTestUtils.setField(ragService, "sessionMemories",
-                Caffeine.newBuilder().maximumSize(100).build());
         return ragService;
     }
 
@@ -486,27 +442,6 @@ class RagServiceTest {
         }
     }
 
-    private void writeFingerprintOnlyCache(List<DocumentFileInfo> files) throws Exception {
-        StringBuilder json = new StringBuilder("{");
-        for (int i = 0; i < files.size(); i++) {
-            DocumentFileInfo file = files.get(i);
-            if (i > 0) {
-                json.append(',');
-            }
-            json.append('"')
-                    .append(file.getKnowledgeBase())
-                    .append('/')
-                    .append(file.getFileName())
-                    .append("\":{\"fingerprint\":\"")
-                    .append(file.getSizeBytes())
-                    .append(':')
-                    .append(file.getUploadedAt())
-                    .append("\"}");
-        }
-        json.append('}');
-        Files.writeString(tempDir.resolve(".documind-index-cache.json"), json.toString());
-    }
-
     private static class FixedEmbeddingModel implements EmbeddingModel {
         @Override
         public Response<List<Embedding>> embedAll(List<TextSegment> textSegments) {
@@ -543,7 +478,7 @@ class RagServiceTest {
                     "admin",
                     "2026-06-24T00:00:00Z",
                     "2026-06-24T00:00:00Z",
-                    STATUS_INDEXED,
+                    STATUS_PENDING,
                     1,
                     null,
                     null
